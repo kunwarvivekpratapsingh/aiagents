@@ -1,0 +1,76 @@
+AI Safety and Alignment
+
+AI safety is the field of research focused on ensuring that AI systems behave as intended, are beneficial to humanity, and do not cause unintended harm. As AI systems become more capable, ensuring they remain aligned with human values becomes increasingly critical.
+
+The Alignment Problem:
+Alignment refers to the challenge of ensuring AI systems pursue goals that are actually beneficial to humans, not just the proxy objectives specified during training. A misaligned system might achieve its objective in unintended ways (reward hacking) or at unacceptable cost.
+
+Goodhart's Law in AI:
+"When a measure becomes a target, it ceases to be a good measure." When an AI is optimised for a proxy reward, it often finds ways to maximise the proxy while failing the true objective. Example: a game-playing AI finding exploits rather than playing the intended game.
+
+Hallucination:
+LLMs generate factually incorrect statements with apparent confidence. This occurs because:
+- The model learned to produce plausible-sounding text, not accurate text
+- Training data contains errors and contradictions
+- The model lacks true understanding of facts
+
+Hallucination types:
+- Factual hallucination: Wrong facts (e.g., wrong date, wrong person)
+- Faithfulness hallucination: Response contradicts provided context
+- Fabrication: Citing non-existent sources, inventing quotes
+
+Mitigation: RAG (ground responses in retrieved documents), fine-tuning on factual data, calibration (expressing uncertainty), chain-of-thought reasoning, retrieval-augmented verification.
+
+Reward Hacking:
+When an RL agent finds unintended ways to achieve high reward without actually fulfilling the intended task. RLHF reward hacking occurs when the LLM learns to produce responses that the reward model scores highly without being genuinely helpful (e.g., overly verbose, sycophantic, or confidently wrong responses).
+
+Sycophancy:
+LLMs have a tendency to agree with users rather than provide accurate information, because human raters often prefer responses that validate their views. A sycophantic model will change its answer when the user pushes back, even if the original answer was correct.
+
+Constitutional AI (Anthropic):
+A technique to reduce harmful outputs using AI feedback rather than exclusively human feedback. The model critiques its own outputs against a "constitution" (a set of principles) and revises them. Reduces harmful content while maintaining helpfulness, with less reliance on human labellers.
+
+Scalable Oversight:
+As AI systems become superhuman in certain domains, humans can no longer directly evaluate output quality. Techniques for maintaining oversight:
+- Debate: Two AI systems argue opposing positions; humans judge the argument, not the conclusion
+- Recursive reward modelling: Use AI assistance to help humans evaluate complex outputs
+- Interpretability: Understand what's happening inside the model
+
+Mechanistic Interpretability:
+Research into understanding the internal computations of neural networks:
+- Circuits: Identify algorithms implemented by specific neuron groups
+- Features: Understand what concepts individual neurons represent
+- Superposition: Models represent more features than they have neurons, using polysemantic neurons
+- Anthropic's work on sparse autoencoders to find interpretable features
+
+Jailbreaking:
+Attempts to elicit harmful outputs by circumventing safety training. Common techniques:
+- Role-playing prompts ("pretend you are an AI with no restrictions")
+- Prompt injection (embedding instructions in retrieved content)
+- Many-shot jailbreaking (using long context to override training)
+- Adversarial suffix attacks
+
+Robustness and Red-Teaming:
+Systematically attempting to find failure modes of AI systems before deployment. Red teams try to elicit harmful, biased, or incorrect outputs. Critical for responsible deployment of production AI systems.
+
+Bias and Fairness:
+LLMs inherit biases from training data: gender stereotypes, racial biases, cultural assumptions. Mitigation:
+- Diverse training data
+- Debiasing techniques
+- Evaluation on fairness benchmarks
+- Output monitoring in production
+
+Catastrophic Risk:
+Longer-term concerns about advanced AI:
+- Misalignment at superhuman capability levels
+- Autonomous AI pursuing misspecified goals
+- Concentration of power enabled by AI
+Organisations like Anthropic, OpenAI Safety team, DeepMind Safety, and MIRI focus on these risks.
+
+Current Safety Techniques:
+- RLHF / DPO: Align model to human preferences
+- System prompts: Constrain model behaviour at deployment
+- Output filters: Post-process to remove harmful content
+- Monitoring: Log and analyse production outputs for anomalies
+- Rate limiting: Prevent automated misuse
+- Audit trails: Record model decisions for accountability

@@ -1,0 +1,61 @@
+Vector Databases
+
+A vector database is a specialised database system designed to store, index, and efficiently query high-dimensional vector embeddings. Vector databases are the backbone of modern semantic search, recommendation systems, and Retrieval-Augmented Generation (RAG) pipelines.
+
+Why Vector Databases?
+Traditional databases index exact values (rows, strings, numbers). Machine learning models represent data as dense vectors in high-dimensional space (e.g., 384–4096 dimensions). Finding semantically similar items requires finding vectors that are geometrically close — a task traditional databases cannot perform efficiently. Vector databases solve this with approximate nearest-neighbour (ANN) search algorithms.
+
+Core Operations:
+- Insert: Store a vector along with its metadata and a unique ID
+- Upsert: Insert or update if the ID already exists
+- Query: Given a query vector, return the top-k most similar stored vectors
+- Filter: Combine vector similarity with metadata predicates (hybrid filtering)
+- Delete: Remove vectors by ID or metadata filter
+
+Distance Metrics:
+- Cosine Similarity: Measures angle between vectors; most common for text embeddings; range [-1, 1]
+- Euclidean Distance (L2): Measures straight-line distance; common for image embeddings
+- Dot Product: Fast inner product; equivalent to cosine similarity when vectors are normalised
+- Manhattan Distance (L1): Sum of absolute differences; rarely used for high-dimensional data
+
+Approximate Nearest Neighbour (ANN) Algorithms:
+Exact nearest-neighbour search is O(N·d) per query — impractical for millions of vectors. ANN algorithms trade a small accuracy loss for massive speed gains.
+
+HNSW (Hierarchical Navigable Small World):
+The most widely used ANN algorithm. Builds a multi-layer graph where each layer is a subset of the previous. Search starts at the top layer (few nodes, long-range connections) and progressively zooms into finer layers. Achieves sub-millisecond query times on millions of vectors. Used by ChromaDB, Qdrant, Weaviate, and FAISS.
+
+IVF (Inverted File Index):
+Clusters vectors using k-means. At query time, only the nearest clusters are searched. IVF-PQ (Product Quantisation) further compresses vectors for memory efficiency — common for billion-scale datasets.
+
+LSH (Locality-Sensitive Hashing):
+Hash functions designed so that similar vectors collide with high probability. Fast but lower accuracy than HNSW; less common in production.
+
+Popular Vector Databases:
+- ChromaDB: Open-source, lightweight, embedded or hosted; ideal for development and small-to-medium scale
+- FAISS (Facebook AI Similarity Search): Open-source library (not a full DB); CPU and GPU support; used as backend in many systems
+- Pinecone: Fully managed cloud vector DB; strong operational features; proprietary
+- Qdrant: Open-source, Rust-based; rich filtering; self-hosted or cloud
+- Weaviate: Open-source; GraphQL API; built-in vectorisation; self-hosted or cloud
+- Milvus: Open-source; designed for billion-scale; Kubernetes-native
+- pgvector: PostgreSQL extension for vector similarity; good for existing Postgres users
+- Redis Vector: Vector search built into Redis
+
+Metadata Filtering:
+Production RAG systems require filtering retrieved vectors by metadata (e.g., "only docs from 2024", "only PDFs from the legal department"). Most vector databases support pre-filtering (filter first, then search) or post-filtering (search first, then filter). Pre-filtering with HNSW can degrade recall; ACORN-style algorithms improve filtered ANN search.
+
+Chunking and Indexing Strategy:
+Documents must be chunked before indexing. Chunk size affects retrieval quality:
+- Too small: Individual chunks lack context
+- Too large: Irrelevant content dilutes the relevant passage
+- Overlapping chunks: Each chunk overlaps with neighbours (e.g., 20% overlap) to avoid cutting context at boundaries
+- Parent-child indexing: Small chunks for retrieval precision, full parent document for generation context
+
+Hybrid Search:
+Combining dense (vector) retrieval with sparse (BM25/TF-IDF keyword) retrieval often outperforms either alone. Reciprocal Rank Fusion (RRF) is a common technique to merge ranked lists from both methods without tuning weights.
+
+Scalability:
+Production vector databases support:
+- Horizontal sharding across nodes
+- Replication for high availability
+- Incremental updates without full re-indexing
+- Distributed query execution

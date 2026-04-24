@@ -1,0 +1,52 @@
+Embeddings and Semantic Similarity
+
+An embedding is a dense, fixed-dimensional vector representation of data (text, images, audio, etc.) in a continuous vector space. Embeddings encode semantic meaning such that similar items are mapped to nearby points in the vector space, enabling machine learning algorithms to work with symbolic data.
+
+Word Embeddings:
+The earliest widely-used embeddings represented individual words as vectors.
+- Word2Vec (Mikolov et al., 2013): Trained via two architectures — CBOW (predict word from context) and Skip-gram (predict context from word). Captures analogical relationships: "king" - "man" + "woman" ≈ "queen".
+- GloVe (Pennington et al., 2014): Global Vectors, trained on word co-occurrence statistics from a corpus. Combines global matrix factorisation with local context windows.
+- FastText (Joulin et al., 2016): Extends Word2Vec by representing words as bags of character n-grams. Handles out-of-vocabulary words and morphologically rich languages.
+
+Limitation: Context-independent. "Bank" has the same vector whether it means a financial institution or a riverbank.
+
+Contextual Embeddings:
+Modern embeddings are context-dependent — the same word gets different vectors depending on surrounding context.
+- ELMo (Peters et al., 2018): Bidirectional LSTM language model; embeddings are weighted sum of all LSTM layers
+- BERT (Devlin et al., 2018): Bidirectional Transformer encoder; produces rich contextual embeddings via Masked Language Modelling pre-training
+- GPT embeddings: Unidirectional; last-layer hidden states used as embeddings
+
+Sentence and Document Embeddings:
+For retrieval and semantic similarity, entire sentences/paragraphs need single vector representations.
+- Sentence-BERT (SBERT, Reimers & Gurevych, 2019): Fine-tunes BERT with siamese network on NLI and STS datasets using contrastive loss. Enables efficient semantic search by producing meaningful sentence-level embeddings.
+- E5 (Wang et al., 2022): Text embeddings fine-tuned with contrastive learning on diverse datasets. Instruction-tuned variant (E5-Instruct) adds task prefixes.
+- BGE (BAAI General Embedding): Strong open-source embedding model from Beijing Academy of AI
+- OpenAI text-embedding-ada-002 / text-embedding-3: Proprietary embeddings; 1536 or 3072 dimensions
+- Cohere Embed: Proprietary; multilingual support
+
+Training Embeddings:
+Contrastive learning is the dominant approach. A positive pair (semantically similar texts) should have high similarity; negative pairs (dissimilar texts) should have low similarity.
+- Triplet loss: Anchor, positive, negative — pull positive closer, push negative away
+- InfoNCE / NT-Xent: Used in SimCSE; in-batch negatives
+- MNRL (Multiple Negatives Ranking Loss): Each positive pair's negatives are all other positives in the batch
+
+Similarity Metrics:
+- Cosine similarity: cos(θ) = (A·B) / (||A|| ||B||). Range [-1, 1]. Invariant to vector magnitude. Most common for text.
+- Dot product: A·B. Faster than cosine when vectors are normalised (equivalent). Not magnitude-invariant.
+- Euclidean distance: ||A-B||₂. Sensitive to magnitude. Common for images.
+
+Dimensionality and Trade-offs:
+Higher dimensions capture more nuance but require more memory and compute. Matryoshka Representation Learning (MRL) trains embeddings so that the first d dimensions are also a strong d-dimensional embedding — allowing flexible dimension selection at query time.
+
+Embedding Evaluation Benchmarks:
+- MTEB (Massive Text Embedding Benchmark): 56 datasets across 8 task categories (retrieval, clustering, classification, reranking, semantic similarity, etc.)
+- BEIR: Heterogeneous retrieval benchmark across 18 datasets
+
+Multimodal Embeddings:
+CLIP (Contrastive Language-Image Pre-Training, OpenAI 2021) jointly trains image and text encoders so that an image and its caption have similar embeddings. Enables cross-modal search: find images from text queries and vice versa. Used in DALL-E and many vision-language systems.
+
+Embedding Compression:
+For production at scale, full-precision embeddings (float32, 4 bytes/dim) may be too large.
+- Product Quantisation (PQ): Compress vectors into compact codes with small accuracy loss
+- Binary quantisation: Map each dimension to a single bit; 32× compression with moderate recall loss
+- int8 quantisation: 4× compression with minimal accuracy loss

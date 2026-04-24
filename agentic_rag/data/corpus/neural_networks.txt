@@ -1,0 +1,69 @@
+Neural Networks
+
+A neural network (also called an artificial neural network or ANN) is a computational model loosely inspired by the structure of biological brains. It consists of interconnected nodes (neurons) organised in layers that process information through learned weight connections.
+
+Biological Inspiration:
+Biological neurons receive signals via dendrites, process them in the soma, and fire signals through the axon when a threshold is exceeded. Artificial neurons model this with: output = activation(Σ wᵢxᵢ + b), where xᵢ are inputs, wᵢ are weights, b is a bias, and the activation function adds non-linearity.
+
+Architecture:
+A standard feedforward neural network has:
+- Input layer: Receives raw features (pixel values, word embeddings, sensor readings)
+- Hidden layers: Transform representations through learned weights
+- Output layer: Produces predictions (class probabilities, regression values, sequence tokens)
+
+Each layer applies: h = activation(W·x + b), where W is a weight matrix and b is a bias vector.
+
+Universal Approximation Theorem:
+A sufficiently wide neural network with a single hidden layer and non-linear activations can approximate any continuous function on a compact domain to arbitrary precision. This theoretical result underpins the expressive power of neural networks.
+
+Training Neural Networks:
+Training adjusts weights to minimise a loss function measuring prediction error.
+
+Forward pass: Compute predictions for a mini-batch of inputs.
+Loss computation: Measure prediction error (e.g., cross-entropy, MSE).
+Backward pass (backpropagation): Compute gradient of loss w.r.t. every weight using the chain rule.
+Parameter update: Adjust weights in the direction of the negative gradient (gradient descent).
+
+Repeat for many epochs (passes through the training data).
+
+Activation Functions:
+Non-linear activations are essential — without them, stacked linear layers collapse to a single linear transformation.
+- Sigmoid: σ(x) = 1/(1+e^-x); outputs (0,1); used in binary output
+- Tanh: outputs (-1,1); zero-centred; used in RNNs
+- ReLU: max(0,x); sparse; fast; default for hidden layers pre-2020
+- Leaky ReLU: max(αx, x) with small α; prevents dying neurons
+- GELU: Smooth probabilistic ReLU; preferred in Transformers
+- Softmax: Normalises outputs to sum to 1; used for multi-class classification
+
+Initialisation:
+Poor weight initialisation causes vanishing/exploding gradients.
+- Xavier/Glorot: For sigmoid/tanh; scales by 1/sqrt(fan_in + fan_out)
+- He initialisation: For ReLU; scales by sqrt(2/fan_in)
+- Zero initialisation: Never for weights (breaks symmetry); fine for biases
+
+Depth vs Width:
+- Deeper networks can represent more complex hierarchical functions with fewer parameters
+- Wider networks have more capacity per layer
+- Very deep networks suffer from vanishing gradients without skip connections
+- Modern architectures (Transformers, ResNets) use depth + residual connections
+
+Overfitting and Generalisation:
+A model overfits when it memorises training data rather than learning general patterns. Signs: training accuracy >> validation accuracy. Mitigations: dropout, weight decay, data augmentation, early stopping, more training data.
+
+Convolutional Neural Networks (CNNs):
+Exploit spatial structure in data (images) through:
+- Convolution: Apply learned filters that detect local patterns (edges, textures)
+- Pooling: Downsample spatial dimensions (max pooling, average pooling)
+- Translation invariance: Same features detected regardless of position
+
+Recurrent Neural Networks (RNNs):
+Process sequential data by maintaining hidden state across time steps. LSTM and GRU variants address the vanishing gradient problem via gating mechanisms. Now largely superseded by Transformers for NLP.
+
+Generative Neural Networks:
+- GANs (Generative Adversarial Networks): Generator and discriminator trained adversarially to produce realistic data (images, audio)
+- VAEs (Variational Autoencoders): Learn a latent representation; can sample and decode to generate new data
+- Diffusion Models: Gradually denoise random noise into data; current state-of-the-art for image generation (Stable Diffusion, DALL-E 3, Midjourney)
+- Autoregressive models: Generate sequences token by token (GPT family)
+
+Neural Scaling Laws:
+Neural network performance improves predictably with scale (parameters, data, compute). Log-linear improvements in loss follow power laws. This motivates training ever-larger models and has driven the LLM scaling paradigm.

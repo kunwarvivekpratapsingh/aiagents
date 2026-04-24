@@ -1,0 +1,66 @@
+Natural Language Processing (NLP)
+
+Natural Language Processing (NLP) is a subfield of artificial intelligence focused on enabling computers to understand, interpret, and generate human language. NLP bridges linguistics and machine learning, powering applications from search engines and translation to chatbots and document analysis.
+
+Core NLP Tasks:
+
+Text Classification:
+Assigning a label to a text. Examples: sentiment analysis (positive/negative/neutral), topic classification, spam detection, intent recognition. Approaches range from bag-of-words + logistic regression to fine-tuned BERT-class models.
+
+Named Entity Recognition (NER):
+Identifying and classifying named entities (persons, organisations, locations, dates, products) in text. A token-level sequence labelling task, typically modelled with conditional random fields (CRFs) or Transformer encoders with token classification heads.
+
+Relation Extraction:
+Identifying semantic relationships between entities in text. E.g., "[Paris] is the capital of [France]" → (Paris, capital-of, France). Used to build knowledge graphs from unstructured text.
+
+Machine Translation:
+Converting text from one language to another. Dominated by Transformer encoder-decoder models (originally seq2seq with attention). DeepL, Google Translate, and Opus-MT use neural machine translation (NMT). LLMs have achieved near-human translation quality for major languages.
+
+Question Answering (QA):
+- Extractive QA: Span selection — find the answer span within a given passage (SQuAD benchmark)
+- Abstractive QA: Generate a free-form answer, possibly combining information from multiple passages
+- Open-domain QA: No passage provided; system must retrieve relevant documents first (combines retrieval + QA)
+
+Text Summarisation:
+- Extractive: Select key sentences from the source document
+- Abstractive: Generate new text that captures the key information
+Evaluated with ROUGE (Recall-Oriented Understudy for Gisting Evaluation) metrics.
+
+Coreference Resolution:
+Identifying all expressions referring to the same entity. E.g., "John said he was tired" → he = John. Important for document understanding.
+
+Dependency Parsing:
+Analysing grammatical structure by identifying dependency relations between words (subject, object, modifier, etc.).
+
+Tokenisation:
+Splitting raw text into tokens for model processing. Modern LLMs use subword tokenisation:
+- Byte-Pair Encoding (BPE): Iteratively merges most frequent character pairs (GPT family)
+- WordPiece: Similar to BPE with likelihood-based merging (BERT)
+- SentencePiece: Language-agnostic; treats text as raw bytes (T5, LLaMA)
+
+Pre-LLM NLP Pipeline:
+Traditional NLP required multiple specialised components: tokeniser → POS tagger → parser → NER → coreference resolver → domain classifier. Each trained separately. LLMs collapse this pipeline: a single fine-tuned model can handle all tasks end-to-end.
+
+Information Retrieval (IR):
+- TF-IDF: Term Frequency-Inverse Document Frequency; classic sparse retrieval
+- BM25: Improved TF-IDF with saturation and length normalisation; still highly competitive
+- Dense Retrieval: Neural embedding models for semantic search; better recall for paraphrase queries
+- Sparse + Dense Hybrid: SPLADE, ColBERT — combine lexical and semantic signals
+
+Evaluation Metrics:
+- BLEU: n-gram precision; used for translation
+- ROUGE: n-gram recall; used for summarisation
+- F1: Token-level precision-recall balance; used for QA and NER
+- BERTScore: Semantic similarity using BERT embeddings; more robust than n-gram metrics
+- Perplexity: Measures how well a language model predicts text; lower is better
+
+NLP Datasets and Benchmarks:
+- GLUE / SuperGLUE: Multi-task benchmarks for understanding tasks
+- SQuAD: Reading comprehension
+- CoNLL 2003: NER
+- MultiNLI: Natural language inference
+- WMT: Machine translation
+- MMLU: Massive Multitask Language Understanding (57 academic subjects)
+
+Modern NLP with LLMs:
+LLMs have shifted NLP from task-specific models to general-purpose models prompted or lightly fine-tuned for specific tasks. Instruction-tuned LLMs (ChatGPT, Claude, Gemini) can perform most NLP tasks zero-shot at near state-of-the-art levels, dramatically reducing the need for task-specific data collection and model training.

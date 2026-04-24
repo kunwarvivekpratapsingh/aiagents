@@ -1,0 +1,68 @@
+Knowledge Graphs
+
+A knowledge graph (KG) is a structured representation of entities and their relationships in a graph database. Knowledge graphs encode facts as triples: (subject, predicate, object), e.g., (Albert Einstein, bornIn, Ulm). They enable structured reasoning, semantic search, and question answering over interconnected factual knowledge.
+
+Structure:
+- Nodes (entities): Represent real-world objects, concepts, or events (persons, places, products, events)
+- Edges (relations): Represent relationships between entities (bornIn, worksFor, partOf)
+- Literals: Typed attribute values attached to nodes (strings, numbers, dates)
+- Types / Ontology: Define the schema — which entity types exist and which relations are valid
+
+Large-Scale Knowledge Graphs:
+- Wikidata: Open, community-maintained KG with 100M+ statements. Backbone of Wikipedia's structured data.
+- Freebase: Google's KG (now defunct, merged into Wikidata). Used to train early QA models.
+- Google Knowledge Graph: Powers Google's knowledge panels. Proprietary.
+- YAGO: Derived from Wikipedia and WordNet. Highly accurate entity typing.
+- DBpedia: Extracted from Wikipedia infoboxes. Linked to Wikidata.
+- ConceptNet: Commonsense knowledge with relations like "UsedFor", "IsA", "CapableOf".
+
+Knowledge Graph Embeddings:
+Map entities and relations to dense vectors in a continuous space, enabling:
+- Link prediction: Predict missing triples
+- Entity alignment: Match entities across KGs
+- Analogical reasoning over KG structure
+
+TransE: Represents a relation r as a translation in entity space: h + r ≈ t for a valid triple (h, r, t).
+TransR, RotatE, ComplEx, RESCAL: More expressive variants handling symmetric/antisymmetric/hierarchical relations.
+
+Graph Neural Networks (GNNs) for KGs:
+GNNs aggregate information from entity neighbourhoods iteratively. R-GCN (Relational Graph Convolutional Network) handles multi-relational graphs. Used for entity classification, link prediction, and KG-based question answering.
+
+Knowledge Graph Question Answering (KGQA):
+- SP-based (Semantic Parsing): Convert natural language question to a formal query (SPARQL, Cypher), then execute against the KG. High precision but brittle on complex or ambiguous questions.
+- Embedding-based: Traverse KG embeddings to find answer entities.
+- LLM + KG (hybrid): Use LLM for natural language understanding, KG for factual grounding. Reduces hallucination on factual questions.
+
+Knowledge Graph Construction:
+- Manual curation: High quality, low coverage (Wikidata)
+- Information extraction: NER, relation extraction, event extraction from text
+- Web mining: Extracting structured data from HTML tables, infoboxes
+- LLM-assisted extraction: Use LLMs to extract entities and relations at scale
+
+SPARQL:
+The standard query language for RDF knowledge graphs. Allows pattern matching over triples:
+SELECT ?capital WHERE { ?country rdf:type dbo:Country . ?country dbo:capital ?capital . }
+
+Graph Databases:
+- Neo4j: Popular property graph DB; Cypher query language; supports GNN extensions
+- Amazon Neptune: Managed cloud graph DB; supports RDF and property graphs
+- Stardog: Enterprise knowledge graph platform; supports OWL reasoning
+- TigerGraph: Distributed graph DB for analytics at scale
+
+Ontologies and Schemas:
+- OWL (Web Ontology Language): Define classes, properties, and axioms; enables automated reasoning
+- RDF Schema (RDFS): Simpler vocabulary for describing classes and properties
+- Schema.org: Lightweight vocabulary for web structured data
+
+KG + LLM Integration:
+Modern approaches combine the factual precision of knowledge graphs with the language understanding of LLMs:
+- KG-RAG: Retrieve relevant subgraphs from a KG, serialise as text, use as LLM context
+- GraphRAG (Microsoft): Build a KG from source documents, then perform graph traversal + summarisation at query time
+- LLM for KG completion: Use LLMs to predict missing facts, generate textual descriptions of entities
+
+Applications:
+- Semantic search (Google, Bing)
+- Drug discovery (entity: drugs, diseases, genes; relations: treats, inhibits)
+- Fraud detection (transaction graph anomalies)
+- Recommendation systems (user-item-attribute graphs)
+- Enterprise data integration (unified view of siloed databases)

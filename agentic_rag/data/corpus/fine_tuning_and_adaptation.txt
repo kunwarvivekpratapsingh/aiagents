@@ -1,0 +1,65 @@
+Fine-Tuning and Model Adaptation
+
+Fine-tuning is the process of continuing the training of a pre-trained model on a smaller, task-specific dataset. It adapts a general-purpose model to a specific domain, task, or style while preserving the broad capabilities learned during pre-training.
+
+Why Fine-Tune?
+Pre-trained LLMs have broad knowledge but may not follow specific instructions, produce outputs in required formats, or have domain-specific expertise. Fine-tuning:
+- Improves instruction following for specific use cases
+- Teaches domain-specific vocabulary and conventions
+- Reduces hallucination in specialised domains
+- Enables models to learn output formats (JSON, SQL, code)
+- Adjusts tone, style, or persona
+
+Full Fine-Tuning:
+All model parameters are updated during training. Requires the same compute and memory as pre-training at that scale. Impractical for 70B+ models without significant GPU clusters. Can cause catastrophic forgetting (loss of prior capabilities).
+
+Parameter-Efficient Fine-Tuning (PEFT):
+Freeze most model parameters; train only a small number. Achieves most benefits of full fine-tuning with a fraction of the compute and memory.
+
+LoRA (Low-Rank Adaptation):
+The dominant PEFT method. For each weight matrix W in the model, learns a low-rank decomposition ΔW = AB, where A is m×r and B is r×n with rank r << min(m,n). Only A and B are trained (a fraction of 1% of all parameters). During inference, ΔW is added to W: W' = W + α·AB.
+
+Key LoRA hyperparameters:
+- Rank r: Typical values 4, 8, 16, 32, 64
+- Alpha (α): Scaling factor, often set equal to r
+- Target modules: Which weight matrices to adapt (Q, K, V, output projection, FFN)
+
+QLoRA (Quantised LoRA):
+Combines LoRA with 4-bit quantisation of the frozen base model. Enables fine-tuning of 65B models on a single 48GB GPU. Uses NF4 (Normal Float 4) quantisation and double quantisation for memory efficiency.
+
+Adapter Layers:
+Insert small bottleneck feed-forward layers (adapter modules) within each Transformer block. Only adapters are trained. Used in AdapterHub and early PEFT work.
+
+Prefix Tuning / Prompt Tuning:
+Learn soft continuous prompt vectors prepended to the input. The base model is frozen; only the prompt vectors are trained. Prompt tuning works well at very large scales (T5-11B); less effective on smaller models.
+
+Instruction Fine-Tuning:
+Fine-tuning on datasets of (instruction, response) pairs to improve instruction following. Key datasets: FLAN (collection of NLP datasets reformatted as instructions), Alpaca (52K GPT-3.5 generated instructions), OpenHermes, Dolly, and ShareGPT.
+
+Supervised Fine-Tuning (SFT) for Chat Models:
+The first stage of aligning pre-trained LLMs into chat assistants. Trains on multi-turn conversational data with system, user, and assistant roles.
+
+Data Requirements for Fine-Tuning:
+- Quality over quantity: 1,000 high-quality examples often outperforms 100,000 noisy ones
+- Diversity: Cover the range of expected inputs
+- Format consistency: Match the exact chat template (e.g., ChatML, Llama-3 format)
+- No contamination: Avoid test set leakage
+
+Catastrophic Forgetting:
+Fine-tuning on domain data can degrade performance on other tasks. Mitigation:
+- Mix general instruction data with domain data
+- Use PEFT (frozen backbone preserves general capabilities)
+- Elastic Weight Consolidation (EWC)
+
+Evaluation After Fine-Tuning:
+- Task-specific metrics: F1, BLEU, accuracy on held-out test set
+- General capability benchmarks: MMLU, HellaSwag, TruthfulQA to check for regression
+- Human evaluation: Rate helpfulness, accuracy, format correctness
+- Safety evaluation: Red-team for harmful outputs introduced by fine-tuning
+
+When Not to Fine-Tune:
+Fine-tuning is expensive and often unnecessary. Consider alternatives:
+- Prompt engineering: Often sufficient for well-supported tasks
+- RAG: Better for knowledge-heavy tasks where the knowledge changes
+- Few-shot examples: Effective for format and style adaptation
+Fine-tune only when extensive prompt engineering and RAG fail to meet quality requirements.

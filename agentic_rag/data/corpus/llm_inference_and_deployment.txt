@@ -1,0 +1,67 @@
+LLM Inference and Deployment
+
+Deploying large language models in production requires careful attention to latency, throughput, cost, and reliability. LLM inference has unique characteristics that differ from traditional ML model serving.
+
+Key Inference Metrics:
+- Time to First Token (TTFT): Latency from request to first output token; affects user perceived responsiveness
+- Tokens per Second (TPS): Throughput after the first token; determines streaming speed
+- Requests per Second (RPS): How many concurrent users the system can handle
+- GPU Memory Utilisation: LLMs are memory-bound; efficient memory usage is critical
+- Cost per 1M tokens: Input and output token costs for API pricing
+
+Autoregressive Generation:
+LLMs generate text token by token. Each forward pass takes the full context (prompt + previously generated tokens) and produces the next token's probability distribution. This is inherently sequential and creates two distinct phases:
+- Prefill (prompt processing): Process all input tokens in parallel — compute-bound
+- Decode (generation): Generate one token per forward pass — memory-bandwidth-bound
+
+KV Cache:
+Key and Value tensors from the attention mechanism are cached for all previously processed tokens. This avoids recomputing them for each new token during generation. KV cache size = 2 * n_layers * n_heads * d_head * sequence_length * batch_size * dtype_bytes. Managing KV cache efficiently is critical for high-throughput serving.
+
+Quantisation:
+Reduce model precision to decrease memory and increase speed.
+- FP16 / BF16: Half-precision; minimal accuracy loss; 2× memory vs FP32
+- INT8 (W8A8, W8A16): 8-bit weights and/or activations; 2-4× memory reduction
+- INT4 / NF4 (GPTQ, AWQ, QLoRA): 4-bit quantisation; 4-8× memory reduction; small accuracy loss
+- GGUF / llama.cpp: CPU-optimised quantisation formats for local inference
+
+Batching Strategies:
+- Static batching: Process a fixed batch size together; simple but wasteful if requests finish at different times
+- Dynamic batching: Accumulate requests up to a time window or batch size limit
+- Continuous batching (iteration-level batching): Add new requests to a batch as old ones finish; dramatically improves GPU utilisation; used by vLLM, TensorRT-LLM
+
+PagedAttention (vLLM):
+Inspired by OS virtual memory, PagedAttention allocates KV cache in non-contiguous pages. Eliminates internal fragmentation, enables memory sharing across beams and parallel sampling, and enables near-perfect GPU memory utilisation. Implemented in vLLM.
+
+Speculative Decoding:
+Use a small draft model to propose multiple tokens at once; the large model verifies in a single forward pass. If the large model agrees with a token, it's accepted; if not, the large model's prediction is used and drafting restarts. Can achieve 2-3× speedup for generation tasks without changing output distribution.
+
+Tensor Parallelism:
+Split individual weight matrices across multiple GPUs. Each GPU processes a slice of each matrix multiplication. Reduces memory per GPU proportionally to the number of GPUs. Used in Megatron-LM, DeepSpeed.
+
+Pipeline Parallelism:
+Split model layers across GPUs in a pipeline. Each GPU processes a stage (set of layers). Micro-batching keeps all GPUs busy. Used for very large models that don't fit on a single node.
+
+Inference Frameworks:
+- vLLM: High-throughput serving with PagedAttention and continuous batching
+- TensorRT-LLM (NVIDIA): Optimised for NVIDIA GPUs with custom CUDA kernels
+- TGI (Text Generation Inference, HuggingFace): Production LLM serving
+- Ollama: Local inference for consumer hardware
+- llama.cpp: CPU and consumer GPU inference with quantisation
+- DeepSpeed-Inference: Microsoft's inference optimisation library
+
+Prompt Caching:
+Reuse computation for repeated prompt prefixes. Anthropic's prompt caching stores the KV cache for a marked prefix across requests, reducing cost and latency for applications with long system prompts or few-shot examples.
+
+Deployment Patterns:
+- API hosting (OpenAI, Anthropic, Google): Fully managed; per-token pricing; no infrastructure
+- Self-hosted cloud: Deploy on GPU instances (A100/H100 on AWS, GCP, Azure); higher control, higher ops burden
+- Edge/on-device: Quantised models on phones, laptops (Apple Silicon, Snapdragon); privacy, offline capability
+- Hybrid: Edge for latency-sensitive paths, cloud for complex tasks
+
+Monitoring in Production:
+- Latency percentiles (P50, P95, P99)
+- Error rates and timeout rates
+- Token usage (cost monitoring)
+- Output quality metrics (sampling from production traffic)
+- Prompt injection detection
+- PII/sensitive content detection in inputs and outputs

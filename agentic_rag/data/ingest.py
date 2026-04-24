@@ -1,13 +1,18 @@
 """
-Wikipedia-backed open-source corpus ingestion.
+Corpus ingestion — local-first, Wikipedia-optional.
 
-Fetches articles on AI/ML topics, splits them into overlapping chunks,
-and upserts into the ChromaDB vector store.
+Load order:
+  1. Local bundled corpus  (always available, no network required)
+  2. Wikipedia             (augments the local corpus when network is available)
+
+Call `ingest(vector_store)` to populate the VectorStore.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
+import os
+from pathlib import Path
 from typing import Callable
 
 from ..sources.vector_store import VectorStore
@@ -16,9 +21,12 @@ from ..config import config
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Corpus — 20 Wikipedia topics covering the knowledge base domain
+# Paths
 # ---------------------------------------------------------------------------
 
+_CORPUS_DIR = Path(__file__).parent / "corpus"
+
+# Optional Wikipedia topics to fetch when network is available
 WIKIPEDIA_TOPICS: list[str] = [
     "Artificial intelligence",
     "Machine learning",
@@ -36,8 +44,6 @@ WIKIPEDIA_TOPICS: list[str] = [
     "Semantic search",
     "Prompt engineering",
     "Attention (machine learning)",
-    "Recurrent neural network",
-    "Convolutional neural network",
     "Diffusion model",
     "Hallucination (artificial intelligence)",
 ]
@@ -47,83 +53,132 @@ WIKIPEDIA_TOPICS: list[str] = [
 # Text chunking
 # ---------------------------------------------------------------------------
 
-def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+def _chunk(text: str, size: int, overlap: int) -> list[str]:
     words = text.split()
-    step = max(1, chunk_size - overlap)
-    chunks: list[str] = []
-    for i in range(0, len(words), step):
-        chunk = " ".join(words[i : i + chunk_size])
-        if len(chunk.split()) >= 40:  # skip micro-chunks
-            chunks.append(chunk)
-    return chunks
+    step = max(1, size - overlap)
+    return [
+        " ".join(words[i : i + size])
+        for i in range(0, len(words), step)
+        if len(words[i : i + size]) >= 30  # skip micro-chunks
+    ]
+
+
+def _uid(source: str, index: int) -> str:
+    return hashlib.sha256(f"{source}||{index}".encode()).hexdigest()[:32]
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Local corpus loader
 # ---------------------------------------------------------------------------
 
-def ingest_wikipedia(
+def _load_local_corpus(
     vector_store: VectorStore,
-    topics: list[str] | None = None,
     progress_cb: Callable[[str, int, int], None] | None = None,
 ) -> int:
-    """
-    Fetch Wikipedia articles and upsert them into *vector_store*.
-
-    Args:
-        vector_store: Target VectorStore instance.
-        topics:       Override the default topic list.
-        progress_cb:  Optional callback(topic, current, total) for UI progress.
-
-    Returns:
-        Total number of document chunks ingested.
-    """
-    try:
-        import wikipediaapi
-    except ImportError as exc:
-        raise ImportError("Install wikipedia-api: pip install wikipedia-api") from exc
-
-    topics = topics or WIKIPEDIA_TOPICS
-    wiki = wikipediaapi.Wikipedia(
-        language="en",
-        user_agent="AgenticRAG/1.0 (open-source research project)",
-    )
+    files = sorted(_CORPUS_DIR.glob("*.txt"))
+    if not files:
+        logger.warning("No corpus files found in %s", _CORPUS_DIR)
+        return 0
 
     documents: list[str] = []
     metadatas: list[dict] = []
     ids: list[str] = []
 
-    for idx, topic in enumerate(topics):
+    for idx, path in enumerate(files):
+        title = path.stem.replace("_", " ").title()
         if progress_cb:
-            progress_cb(topic, idx + 1, len(topics))
+            progress_cb(title, idx + 1, len(files))
 
-        page = wiki.page(topic)
-        if not page.exists():
-            logger.warning("Wikipedia page not found: %s", topic)
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
             continue
 
-        text = page.text
-        if not text.strip():
-            continue
-
-        chunks = _chunk_text(text, config.chunk_size, config.chunk_overlap)
-        logger.info("  %s → %d chunks", topic, len(chunks))
-
+        chunks = _chunk(text, config.chunk_size, config.chunk_overlap)
         for i, chunk in enumerate(chunks):
-            uid = hashlib.sha256(f"{topic}||{i}".encode()).hexdigest()[:32]
+            uid = _uid(f"local:{path.stem}", i)
             documents.append(chunk)
             metadatas.append(
                 {
-                    "source": "wikipedia",
-                    "title": topic,
+                    "source": "local_corpus",
+                    "title": title,
+                    "file": path.name,
                     "chunk_index": i,
-                    "url": page.fullurl,
                 }
             )
             ids.append(uid)
 
-    # Upsert in batches of 200 to avoid memory spikes
-    batch = 200
+    _batch_upsert(vector_store, documents, metadatas, ids)
+    logger.info("Local corpus: %d chunks from %d files", len(documents), len(files))
+    return len(documents)
+
+
+# ---------------------------------------------------------------------------
+# Wikipedia loader (optional — requires network)
+# ---------------------------------------------------------------------------
+
+def _load_wikipedia(
+    vector_store: VectorStore,
+    topics: list[str],
+    progress_cb: Callable[[str, int, int], None] | None = None,
+) -> int:
+    try:
+        import wikipediaapi
+    except ImportError:
+        logger.warning("wikipedia-api not installed; skipping Wikipedia ingestion")
+        return 0
+
+    wiki = wikipediaapi.Wikipedia(
+        language="en",
+        user_agent="AgenticRAG/2.0 (open-source research project)",
+    )
+
+    documents: list[str] = []
+    metadatas: list[dict] = []
+    ids: list[str] = []
+    fetched = 0
+
+    for idx, topic in enumerate(topics):
+        if progress_cb:
+            progress_cb(topic, idx + 1, len(topics))
+        try:
+            page = wiki.page(topic)
+            if not page.exists() or not page.text.strip():
+                logger.debug("Wikipedia page missing or empty: %s", topic)
+                continue
+
+            chunks = _chunk(page.text, config.chunk_size, config.chunk_overlap)
+            for i, chunk in enumerate(chunks):
+                uid = _uid(f"wiki:{topic}", i)
+                documents.append(chunk)
+                metadatas.append(
+                    {
+                        "source": "wikipedia",
+                        "title": topic,
+                        "url": page.fullurl,
+                        "chunk_index": i,
+                    }
+                )
+                ids.append(uid)
+            fetched += 1
+        except Exception as exc:
+            logger.warning("Failed to fetch Wikipedia page '%s': %s", topic, exc)
+
+    _batch_upsert(vector_store, documents, metadatas, ids)
+    logger.info("Wikipedia: %d chunks from %d/%d pages", len(documents), fetched, len(topics))
+    return len(documents)
+
+
+# ---------------------------------------------------------------------------
+# Batch upsert helper
+# ---------------------------------------------------------------------------
+
+def _batch_upsert(
+    vector_store: VectorStore,
+    documents: list[str],
+    metadatas: list[dict],
+    ids: list[str],
+    batch: int = 200,
+) -> None:
     for start in range(0, len(documents), batch):
         vector_store.upsert(
             documents[start : start + batch],
@@ -131,5 +186,31 @@ def ingest_wikipedia(
             ids[start : start + batch],
         )
 
-    logger.info("Ingestion complete — %d chunks from %d topics", len(documents), len(topics))
-    return len(documents)
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def ingest(
+    vector_store: VectorStore,
+    use_wikipedia: bool = True,
+    wikipedia_topics: list[str] | None = None,
+    progress_cb: Callable[[str, int, int], None] | None = None,
+) -> int:
+    """
+    Populate *vector_store* with the bundled local corpus and optionally
+    Wikipedia articles.
+
+    Returns total chunks ingested.
+    """
+    total = 0
+    total += _load_local_corpus(vector_store, progress_cb=progress_cb)
+
+    if use_wikipedia:
+        topics = wikipedia_topics or WIKIPEDIA_TOPICS
+        wiki_count = _load_wikipedia(vector_store, topics, progress_cb=progress_cb)
+        if wiki_count == 0:
+            logger.info("Wikipedia unavailable — running on local corpus only")
+        total += wiki_count
+
+    return total

@@ -1,0 +1,56 @@
+Retrieval-Augmented Generation (RAG)
+
+Retrieval-Augmented Generation (RAG) is an AI framework that enhances large language model (LLM) outputs by incorporating information retrieved from external knowledge sources before generating a response. Instead of relying solely on knowledge encoded in model weights during training, RAG dynamically fetches relevant documents at inference time and uses them as grounding context for the language model.
+
+RAG was introduced in a 2020 paper by Lewis et al. from Facebook AI Research. The core insight is that parametric memory (weights) and non-parametric memory (retrieval index) can be combined: the retriever finds relevant passages, and the generator conditions its output on those passages plus the original query.
+
+Core Components of a RAG System:
+
+1. Document Store / Knowledge Base
+The foundation of RAG is an indexed collection of documents. These are typically split into smaller chunks (100–500 tokens each) to improve retrieval precision. Documents can include PDFs, web pages, database records, internal wikis, or any structured/unstructured text.
+
+2. Embedding Model
+An embedding model converts text (both documents and queries) into dense vector representations in a high-dimensional space (e.g., 384 or 1536 dimensions). Semantically similar texts produce vectors that are geometrically close. Common embedding models include OpenAI's text-embedding-ada-002, Sentence-BERT, and E5.
+
+3. Vector Database
+A vector database stores document embeddings and supports efficient approximate nearest-neighbor (ANN) search. Popular options include Pinecone, Weaviate, Qdrant, Chroma, and FAISS. They use indexing algorithms like HNSW (Hierarchical Navigable Small World) to retrieve the top-k most similar vectors in milliseconds.
+
+4. Retriever
+Given a user query, the retriever embeds the query and performs a similarity search against the vector database. It returns the top-k document chunks ranked by semantic similarity. Advanced retrievers combine dense (semantic) and sparse (BM25 keyword) retrieval in a hybrid approach.
+
+5. Generator (LLM)
+The retrieved chunks are prepended to the user query as context in the prompt. The LLM then generates a response grounded in this retrieved context, reducing hallucination and improving factual accuracy.
+
+RAG vs Fine-Tuning:
+Fine-tuning bakes new knowledge into model weights permanently, requiring expensive retraining whenever the knowledge changes. RAG externalises knowledge into a retrieval index that can be updated instantly without retraining. RAG is preferred for knowledge that changes frequently, is proprietary, or requires source citations.
+
+Agentic RAG:
+Standard RAG performs a single retrieval step. Agentic RAG introduces a reasoning loop where an agent can:
+- Rewrite the query to improve retrieval quality
+- Decide whether retrieval is even needed
+- Select among multiple data sources (vector DB, web search, APIs)
+- Evaluate the quality of the generated response
+- Loop back and retry if the answer is insufficient
+
+This iterative loop, driven by an LLM acting as a planning agent, significantly improves answer quality on complex multi-hop questions.
+
+Chunking Strategies:
+- Fixed-size chunking: Split every N tokens, with optional overlap
+- Sentence-level chunking: Split at sentence boundaries
+- Semantic chunking: Split when topic changes (detected via embedding similarity drops)
+- Hierarchical chunking: Store both paragraph and document-level embeddings
+
+Evaluation Metrics:
+- Faithfulness: Does the answer stick to the retrieved context?
+- Answer relevancy: Does the answer address the question?
+- Context precision: Are the retrieved chunks relevant to the question?
+- Context recall: Are all needed facts present in the retrieved chunks?
+
+Tools like RAGAS, TruLens, and DeepEval automate RAG pipeline evaluation.
+
+Common Failure Modes:
+- Retrieval miss: Relevant documents not returned (embedding model limitation)
+- Context window overflow: Too many chunks exceed the LLM's context limit
+- Lost-in-the-middle: LLMs attend poorly to context in the middle of long prompts
+- Stale index: Knowledge base not updated with recent information
+- Hallucination despite context: LLM ignores retrieved facts and fabricates

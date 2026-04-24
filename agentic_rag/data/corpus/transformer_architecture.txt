@@ -1,0 +1,63 @@
+Transformer Architecture
+
+The Transformer is a neural network architecture introduced by Vaswani et al. in the 2017 paper "Attention Is All You Need." It replaced recurrent neural networks (RNNs) and LSTMs as the dominant architecture for sequence modelling tasks and became the foundation for virtually all modern large language models.
+
+Core Innovation — Self-Attention:
+Transformers process entire sequences in parallel using self-attention, which allows every token to directly attend to every other token regardless of distance. This overcomes the vanishing gradient and long-range dependency problems that plagued RNNs.
+
+Architecture Overview:
+The original Transformer consists of an Encoder stack and a Decoder stack, each composed of identical layers.
+
+Encoder Layer:
+1. Multi-Head Self-Attention: Each token attends to all other tokens in the input
+2. Add & Norm: Residual connection followed by Layer Normalisation
+3. Feed-Forward Network (FFN): Two linear transformations with a ReLU/GELU activation
+4. Add & Norm: Another residual connection and layer norm
+
+Decoder Layer:
+1. Masked Multi-Head Self-Attention: Tokens can only attend to previous tokens (causal masking)
+2. Add & Norm
+3. Cross-Attention: Decoder tokens attend to encoder outputs
+4. Add & Norm
+5. Feed-Forward Network
+6. Add & Norm
+
+Self-Attention Mechanism:
+For each token, the model computes three vectors: Query (Q), Key (K), and Value (V) via learned weight matrices. Attention scores are computed as:
+
+Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) * V
+
+Where d_k is the key dimension. The sqrt(d_k) scaling prevents softmax saturation with large dot products.
+
+Multi-Head Attention:
+Instead of one attention function, multiple "heads" compute attention in parallel across different learned subspaces. Each head captures different relationships. Outputs from all heads are concatenated and projected:
+
+MultiHead(Q,K,V) = Concat(head_1, ..., head_h) * W_O
+
+Positional Encoding:
+Transformers have no inherent notion of sequence order (unlike RNNs). Positional information is injected by adding positional encodings to token embeddings. The original paper used sinusoidal functions; modern models use learned positional embeddings, RoPE (Rotary Position Embedding), or ALiBi.
+
+Transformer Variants:
+- Encoder-only (BERT, RoBERTa): Bidirectional, good for classification and extraction
+- Decoder-only (GPT, LLaMA, Claude): Autoregressive, good for text generation
+- Encoder-Decoder (T5, BART): Good for translation, summarisation
+- Sparse Transformers: Mixture-of-Experts (MoE) — only activate a subset of parameters per token, enabling huge model capacity with manageable compute (Mixtral, GPT-4 reportedly)
+
+Scaling Laws:
+Kaplan et al. (2020) found that LLM performance scales predictably as a power law with model size, dataset size, and compute. The Chinchilla paper (2022) showed optimal training requires roughly 20 tokens per parameter, leading to more data-efficient models like Chinchilla and LLaMA.
+
+Feed-Forward Network:
+Each Transformer layer contains a position-wise FFN that applies the same two-layer MLP to each token independently. The hidden dimension is typically 4× the model dimension. This FFN is now understood to act as a key-value memory, storing factual knowledge learned during training.
+
+Layer Normalisation:
+Pre-norm (applying LayerNorm before attention/FFN, used in GPT-2+) is more stable during training than post-norm (original paper). RMSNorm (removing the mean centering) is used in LLaMA for efficiency.
+
+Flash Attention:
+A memory-efficient attention algorithm (Dao et al., 2022) that fuses attention operations using IO-aware tiling, reducing memory usage from O(N²) to O(N) and speeding up training/inference significantly on modern GPUs.
+
+Key Hyperparameters:
+- d_model: Embedding/hidden dimension (e.g., 768 for BERT-base, 12288 for GPT-3)
+- n_heads: Number of attention heads (e.g., 12, 32, 96)
+- n_layers: Number of stacked Transformer blocks (e.g., 12, 32, 96)
+- d_ff: Feed-forward hidden dimension (typically 4 × d_model)
+- Vocabulary size: Number of unique tokens (e.g., 32K–150K)

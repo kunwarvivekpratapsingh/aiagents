@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import chromadb
-from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from ..config import config
 
@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 class VectorStore:
     def __init__(self) -> None:
         self._client = chromadb.PersistentClient(path=config.chroma_persist_dir)
-        self._ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=config.embedding_model
-        )
+        # DefaultEmbeddingFunction uses a bundled ONNX MiniLM model —
+        # no HuggingFace download required, works fully offline.
+        self._ef = DefaultEmbeddingFunction()
         self._collection = self._client.get_or_create_collection(
             name=config.collection_name,
             embedding_function=self._ef,

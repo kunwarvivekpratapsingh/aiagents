@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 class Config:
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     model: str = "claude-sonnet-4-6"
-    embedding_model: str = "all-MiniLM-L6-v2"
     chroma_persist_dir: str = "./chroma_db"
     collection_name: str = "agentic_rag_docs"
     max_iterations: int = 3

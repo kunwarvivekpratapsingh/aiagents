@@ -65,3 +65,42 @@ class VectorStore:
 
     def count(self) -> int:
         return self._collection.count()
+
+    def list_sources(self) -> list[dict[str, Any]]:
+        """
+        Return a deduplicated list of indexed sources with chunk counts.
+        Each entry: {"source": str, "title": str, "filetype": str, "chunks": int}
+        """
+        if self.count() == 0:
+            return []
+
+        # Fetch all metadata (no embeddings needed)
+        raw = self._collection.get(include=["metadatas"])
+        tally: dict[str, dict[str, Any]] = {}
+
+        for meta in raw["metadatas"]:
+            key = meta.get("source") or meta.get("filename") or meta.get("title", "unknown")
+            if key not in tally:
+                tally[key] = {
+                    "source": key,
+                    "title": meta.get("title") or meta.get("filename") or key,
+                    "filetype": meta.get("filetype") or meta.get("source", "?"),
+                    "chunks": 0,
+                }
+            tally[key]["chunks"] += 1
+
+        return sorted(tally.values(), key=lambda x: x["title"].lower())
+
+    def delete_source(self, source: str) -> int:
+        """Delete all chunks whose 'source' metadata matches *source*. Returns deleted count."""
+        raw = self._collection.get(include=["metadatas"])
+        ids_to_delete = [
+            uid
+            for uid, meta in zip(raw["ids"], raw["metadatas"])
+            if meta.get("source") == source
+            or meta.get("filename") == source
+            or meta.get("title") == source
+        ]
+        if ids_to_delete:
+            self._collection.delete(ids=ids_to_delete)
+        return len(ids_to_delete)

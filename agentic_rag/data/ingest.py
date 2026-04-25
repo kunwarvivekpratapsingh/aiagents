@@ -59,7 +59,7 @@ def _chunk(text: str, size: int, overlap: int) -> list[str]:
     return [
         " ".join(words[i : i + size])
         for i in range(0, len(words), step)
-        if len(words[i : i + size]) >= 30  # skip micro-chunks
+        if len(words[i : i + size]) >= 10  # skip micro-chunks
     ]
 
 
@@ -188,7 +188,7 @@ def _batch_upsert(
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Public API — built-in corpus
 # ---------------------------------------------------------------------------
 
 def ingest(
@@ -199,9 +199,7 @@ def ingest(
 ) -> int:
     """
     Populate *vector_store* with the bundled local corpus and optionally
-    Wikipedia articles.
-
-    Returns total chunks ingested.
+    Wikipedia articles.  Returns total chunks ingested.
     """
     total = 0
     total += _load_local_corpus(vector_store, progress_cb=progress_cb)
@@ -214,3 +212,102 @@ def ingest(
         total += wiki_count
 
     return total
+
+
+# ---------------------------------------------------------------------------
+# Public API — user documents
+# ---------------------------------------------------------------------------
+
+def ingest_file(
+    vector_store: VectorStore,
+    path: "Path | str",
+    progress_cb: Callable[[str, int, int], None] | None = None,
+) -> int:
+    """
+    Load *path* (PDF / DOCX / TXT / MD / HTML / CSV / RST) and upsert
+    its chunks into *vector_store*.  Returns number of chunks added.
+    """
+    from pathlib import Path as _Path
+    from ..loaders.dispatcher import load_file
+
+    path = _Path(path)
+    if progress_cb:
+        progress_cb(path.name, 0, 1)
+
+    raw_docs = load_file(path)
+    return _ingest_raw_docs(vector_store, raw_docs, after_cb=progress_cb and (lambda: progress_cb(path.name, 1, 1)))
+
+
+def ingest_directory(
+    vector_store: VectorStore,
+    dir_path: "Path | str",
+    recursive: bool = True,
+    progress_cb: Callable[[str, int, int], None] | None = None,
+) -> tuple[int, list[str]]:
+    """
+    Load every supported file under *dir_path* and upsert chunks into
+    *vector_store*.  Returns (chunks_added, list_of_error_messages).
+    """
+    from pathlib import Path as _Path
+    from ..loaders.dispatcher import load_directory, SUPPORTED_EXTENSIONS
+
+    dir_path = _Path(dir_path)
+    # Count candidates first so progress bar is accurate
+    pattern = "**/*" if recursive else "*"
+    candidates = [
+        p for p in dir_path.glob(pattern)
+        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+    ]
+
+    total_chunks = 0
+    all_errors: list[str] = []
+
+    for idx, file_path in enumerate(sorted(candidates)):
+        if progress_cb:
+            progress_cb(file_path.name, idx + 1, len(candidates))
+        try:
+            from ..loaders.dispatcher import load_file
+            raw_docs = load_file(file_path)
+            total_chunks += _ingest_raw_docs(vector_store, raw_docs)
+        except Exception as exc:
+            all_errors.append(f"{file_path.name}: {exc}")
+            logger.warning("Skipping %s: %s", file_path.name, exc)
+
+    return total_chunks, all_errors
+
+
+def _ingest_raw_docs(
+    vector_store: VectorStore,
+    raw_docs: list,
+    after_cb: "Callable | None" = None,
+) -> int:
+    """Chunk raw Document objects and upsert into vector_store."""
+    documents: list[str] = []
+    metadatas: list[dict] = []
+    ids: list[str] = []
+
+    for doc in raw_docs:
+        source_key = doc.metadata.get("source", doc.metadata.get("filename", "unknown"))
+        page = doc.metadata.get("page", 0)
+        chunks = _chunk(doc.content, config.chunk_size, config.chunk_overlap)
+
+        for i, chunk in enumerate(chunks):
+            uid = _uid(f"{source_key}:page{page}:{i}", 0)
+            documents.append(chunk)
+            metadatas.append(
+                {
+                    **doc.metadata,
+                    "chunk_index": i,
+                    # Ensure title field is always set for display
+                    "title": doc.metadata.get(
+                        "filename", doc.metadata.get("title", "User Document")
+                    ),
+                }
+            )
+            ids.append(uid)
+
+    _batch_upsert(vector_store, documents, metadatas, ids)
+    if after_cb:
+        after_cb()
+    logger.info("Ingested %d chunks from %d document(s)", len(documents), len(raw_docs))
+    return len(documents)

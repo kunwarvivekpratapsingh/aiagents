@@ -28,17 +28,19 @@ def _make_client(
     rewrite_text: str = "rewritten query about RAG",
     needs_retrieval_json: str = '{"needs_retrieval": true, "reason": "needs facts"}',
     source_json: str = '{"source": "vector_db", "reason": "AI topic"}',
+    reranker_json: str = "[1, 2, 3, 4, 5]",
     response_text: str = "RAG combines retrieval with generation to ground LLM answers in external documents.",
     relevance_json: str = '{"is_relevant": true, "score": 9, "feedback": "complete answer"}',
 ):
     """Build a mock anthropic.Anthropic client with configurable return values."""
     client = MagicMock()
     client.messages.create.side_effect = [
-        _msg(rewrite_text),       # QueryRewriter
-        _msg(needs_retrieval_json),# DetailChecker
-        _msg(source_json),         # SourceSelector
-        _msg(response_text),       # Generator
-        _msg(relevance_json),      # RelevanceChecker
+        _msg(rewrite_text),         # QueryRewriter
+        _msg(needs_retrieval_json), # DetailChecker
+        _msg(source_json),          # SourceSelector
+        _msg(reranker_json),        # LLMReranker
+        _msg(response_text),        # Generator
+        _msg(relevance_json),       # RelevanceChecker
     ]
     return client
 
@@ -213,15 +215,18 @@ class TestRelevanceChecker:
 class TestAgenticPipeline:
     def _make_pipeline(self, tmp_vs, **kwargs):
         """Build a pipeline with a fully mocked Anthropic client."""
-        os.environ["ANTHROPIC_API_KEY"] = "test-key"
         from agentic_rag.pipeline.rag_pipeline import AgenticRAGPipeline
-        pipeline = AgenticRAGPipeline(tmp_vs)
+        from agentic_rag.config import config as _cfg
+        with patch.object(_cfg.__class__, "anthropic_api_key", new="test-key", create=True):
+            _cfg.anthropic_api_key = "test-key"
+            pipeline = AgenticRAGPipeline(tmp_vs)
         pipeline._client = _make_client(**kwargs)
         # Re-inject mocked client into all agents
         pipeline._rewriter._client = pipeline._client
-        pipeline._detail_checker._client = pipeline._client
-        pipeline._source_selector._client = pipeline._client
-        pipeline._relevance_checker._client = pipeline._client
+        pipeline._detail._client = pipeline._client
+        pipeline._selector._client = pipeline._client
+        pipeline._relevance._client = pipeline._client
+        pipeline._reranker._client = pipeline._client
         return pipeline
 
     def test_happy_path_completes_in_one_iteration(self, tmp_vs):
@@ -259,12 +264,14 @@ class TestAgenticPipeline:
             _msg("rewritten query v1"),
             _msg('{"needs_retrieval": true, "reason": "needs facts"}'),
             _msg('{"source": "vector_db", "reason": "AI topic"}'),
+            _msg("[1, 2, 3, 4, 5]"),                               # reranker
             _msg("Incomplete answer."),
             _msg('{"is_relevant": false, "score": 3, "feedback": "missing key details"}'),
             # Iteration 2
             _msg("rewritten query v2 with feedback"),
             _msg('{"needs_retrieval": true, "reason": "needs facts"}'),
             _msg('{"source": "vector_db", "reason": "AI topic"}'),
+            _msg("[1, 2, 3, 4, 5]"),                               # reranker
             _msg("Thorough and complete answer about RAG."),
             _msg('{"is_relevant": true, "score": 8, "feedback": "much better"}'),
         ]

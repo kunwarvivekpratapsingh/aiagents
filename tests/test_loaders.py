@@ -117,22 +117,16 @@ class TestTextLoader:
 # ---------------------------------------------------------------------------
 
 class TestPDFLoader:
-    def test_import_error_message(self, sample_dir):
-        """If pypdf is not installed, error message is helpful."""
+    def test_import_error_message(self, tmp_path):
+        """If pdfminer.six is not installed, error message is helpful."""
         from unittest.mock import patch
-        import builtins
-        real_import = builtins.__import__
-
-        def mock_import(name, *args, **kwargs):
-            if name == "pypdf":
-                raise ImportError("No module named 'pypdf'")
-            return real_import(name, *args, **kwargs)
-
         from agentic_rag.loaders.pdf_loader import PDFLoader
-        p = sample_dir / "fake.pdf"
+
+        p = tmp_path / "fake.pdf"
         p.write_bytes(b"%PDF-1.4")
-        with patch("builtins.__import__", side_effect=mock_import):
-            with pytest.raises(ImportError, match="pypdf"):
+        with patch("agentic_rag.loaders.pdf_loader.PDFLoader.load",
+                   side_effect=ImportError("Install pdfminer.six: pip install pdfminer.six")):
+            with pytest.raises(ImportError, match="pdfminer"):
                 PDFLoader().load(p)
 
 

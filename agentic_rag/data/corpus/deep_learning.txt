@@ -1,0 +1,63 @@
+Deep Learning
+
+Deep learning is a subset of machine learning using artificial neural networks with multiple layers (hence "deep") to learn hierarchical representations of data. It has driven breakthroughs in computer vision, speech recognition, natural language processing, and reinforcement learning.
+
+Neural Network Basics:
+A neural network consists of layers of interconnected nodes (neurons). Each neuron computes a weighted sum of its inputs, adds a bias, and applies a non-linear activation function. Networks are trained with backpropagation and gradient descent.
+
+Layer Types:
+- Fully Connected (Dense): Every neuron connects to every neuron in the next layer. Used in final classification heads and feed-forward networks within Transformers.
+- Convolutional (CNN): Applies learned filters that slide across spatial dimensions. Equivariant to translation. Dominant for image processing before Vision Transformers (ViT).
+- Recurrent (RNN/LSTM/GRU): Processes sequences by maintaining hidden state across time steps. Largely superseded by Transformers for long sequences.
+- Transformer: Self-attention based; processes sequences in parallel. The current dominant architecture.
+- Embedding: Maps discrete tokens (words, categorical features) to continuous dense vectors.
+
+Activation Functions:
+Non-linearities enable networks to represent complex functions.
+- ReLU (Rectified Linear Unit): f(x) = max(0, x). Fast, sparse. Suffers from dying neurons with negative inputs.
+- GELU (Gaussian Error Linear Unit): Smoother ReLU variant; preferred in Transformers (BERT, GPT)
+- SiLU / Swish: Self-gated; used in LLaMA's FFN (SwiGLU variant)
+- Sigmoid: Maps to [0,1]; used in binary classification output layers
+- Softmax: Normalises to probability distribution; used in multi-class classification and attention
+
+Backpropagation:
+The algorithm that computes gradients of the loss with respect to all parameters by applying the chain rule of calculus backwards through the computation graph. Modern frameworks (PyTorch, JAX, TensorFlow) implement automatic differentiation (autograd) to do this automatically.
+
+Batch Normalisation vs Layer Normalisation:
+- Batch Norm: Normalises across the batch dimension; effective for CNNs but problematic for small batches and sequence models
+- Layer Norm: Normalises across the feature dimension for each sample independently; preferred in Transformers
+
+Regularisation in Deep Learning:
+- Dropout: Randomly set activations to zero during training (Srivastava et al., 2014). Acts as implicit ensemble. Standard rate: 0.1–0.5.
+- Weight decay (L2): Penalises large weights; equivalent to a Gaussian prior on weights
+- Gradient clipping: Cap gradient norm to prevent exploding gradients; critical for RNNs and Transformers
+
+Convolutional Neural Networks (CNNs):
+CNNs dominated computer vision 2012–2020. Key architectures: AlexNet, VGG, ResNet (introduced skip connections to train very deep networks), EfficientNet. Key operations: convolution, pooling (max/average), batch normalisation, ReLU.
+
+Skip Connections (Residual Learning):
+Introduced by He et al. (2015) in ResNet. Allow gradients to bypass layers, enabling training of very deep networks (100+ layers). The output is: y = F(x) + x, where F is the learned transformation. Also used in Transformers (residual streams around attention and FFN).
+
+Recurrent Networks:
+- Vanilla RNN: Suffers from vanishing/exploding gradients for long sequences
+- LSTM (Long Short-Term Memory): Gated architecture with cell state; solves vanishing gradient
+- GRU (Gated Recurrent Unit): Simplified LSTM; fewer parameters
+Largely replaced by Transformers but still used in streaming/low-latency settings.
+
+Training at Scale:
+- Data parallelism: Each GPU processes a different mini-batch; gradients are averaged
+- Model parallelism: Different model layers on different GPUs (pipeline parallelism)
+- Tensor parallelism: Split individual matrices across GPUs (Megatron-LM)
+- Mixed precision: Train in fp16/bf16, accumulate in fp32 (2× memory reduction, faster compute)
+- Gradient checkpointing: Recompute activations during backprop instead of storing them (memory vs compute trade-off)
+
+Frameworks:
+- PyTorch (Meta): Dynamic computation graph; dominant in research
+- TensorFlow / Keras (Google): Static and eager mode; strong production ecosystem
+- JAX (Google DeepMind): Functional; XLA compilation; hardware-agnostic; used for LLMs at Google
+- Hugging Face Transformers: High-level library built on PyTorch/TensorFlow for NLP models
+
+Hardware:
+- GPU (NVIDIA): CUDA ecosystem; A100/H100 for training, RTX for inference
+- TPU (Google): Custom ASICs optimised for matrix multiply; used for large-scale training
+- Apple Silicon (M-series): Unified memory, efficient on-device inference

@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    image: agentic-rag:latest
+    container_name: agentic_rag_api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      # Required
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      # Security — set a strong random string before exposing publicly
+      - API_KEY=${API_KEY:-}
+      # CORS — comma-separated allowed origins
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      # Session memory
+      - SESSION_TTL_SECONDS=${SESSION_TTL_SECONDS:-3600}
+      - MAX_SESSIONS=${MAX_SESSIONS:-1000}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - JSON_LOGS=${JSON_LOGS:-true}
+      # Rate limiting
+      - RATE_LIMITING=${RATE_LIMITING:-true}
+      # Workers
+      - WORKERS=${WORKERS:-4}
+    volumes:
+      # Named volume keeps ChromaDB data across container restarts
+      - chroma_data:/app/chroma_db
+      - log_data:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  chroma_data:
+    driver: local
+  log_data:
+    driver: local

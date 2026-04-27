@@ -1,0 +1,65 @@
+Multimodal AI
+
+Multimodal AI refers to systems that can process and generate information across multiple modalities — text, images, audio, video, code, and structured data. Combining modalities enables richer understanding and more capable AI applications.
+
+Core Modalities:
+- Text: Natural language; the primary modality for LLMs
+- Images: Pixel data; processed by CNNs or Vision Transformers (ViT)
+- Audio: Waveforms or spectrograms; speech, music, environmental sounds
+- Video: Temporal sequences of images; includes motion and events
+- Structured data: Tables, graphs, code, mathematical expressions
+
+Vision-Language Models:
+These models jointly represent images and text in a shared embedding space.
+
+CLIP (Contrastive Language-Image Pre-Training, OpenAI 2021):
+Trained on 400M image-text pairs from the web using contrastive learning. The image encoder (ViT or ResNet) and text encoder (Transformer) are trained so that matching pairs have high cosine similarity. Enables zero-shot image classification: compare image embedding to text descriptions of all classes.
+
+ALIGN (Google, 2021):
+Similar to CLIP but trained on 1.8B noisy image-text pairs, showing that scale can compensate for data quality.
+
+GPT-4 Vision / GPT-4o:
+Natively multimodal — accepts image and text inputs, produces text. Achieves near-human performance on visual question answering, chart interpretation, document understanding, and image captioning.
+
+Claude 3 (Anthropic):
+The Claude 3 family (Haiku, Sonnet, Opus) accepts images as input with text context. Capable of chart analysis, diagram interpretation, document reading, and reasoning about visual content.
+
+Gemini (Google DeepMind):
+Natively multimodal from pre-training on text, images, audio, and video. Gemini 1.5 Pro processes up to 1 hour of video or 30,000 lines of code in a single context.
+
+Vision Transformers (ViT):
+Apply the Transformer architecture directly to images by splitting images into fixed-size patches (e.g., 16×16 pixels) and treating each patch as a token. Achieves state-of-the-art vision performance when trained at scale (ViT-L/16, ViT-H/14).
+
+LLaVA (Large Language and Vision Assistant):
+Open-source multimodal LLM connecting a visual encoder (CLIP ViT) to an LLM (LLaMA/Mistral) via a projection layer. Trained on visual instruction data. Family includes LLaVA-1.5, LLaVA-NeXT.
+
+Image Generation Models:
+- DALL-E 3 (OpenAI): Text-to-image generation tightly integrated with ChatGPT; generates high-fidelity images from detailed text prompts
+- Stable Diffusion: Open-source latent diffusion model; run locally or via API
+- Midjourney: Proprietary; aesthetic focus; Discord interface
+- Imagen (Google): Cascaded diffusion model; strong at photorealism
+
+How Diffusion Models Work:
+Diffusion models learn to reverse a gradual noising process. Forward: gradually add Gaussian noise over T steps until the image is pure noise. Backward: train a neural network (U-Net or Transformer) to predict and remove noise at each step. At inference: start from random noise, denoise step by step.
+
+Latent Diffusion Models (LDM):
+Operate in a compressed latent space (encoded by a VAE) rather than pixel space. Much more compute-efficient. Stable Diffusion is a latent diffusion model.
+
+Speech and Audio:
+- Whisper (OpenAI): Transformer-based automatic speech recognition (ASR); trained on 680K hours of audio; robust to accents and noise
+- Bark, VALL-E: Text-to-speech with voice cloning
+- MusicGen (Meta): Text-conditioned music generation
+- AudioCraft: Family of audio generation models
+
+Multimodal RAG:
+Extending RAG to multiple modalities:
+- Store image embeddings alongside text embeddings in the vector database
+- At query time, retrieve relevant images and text chunks together
+- Provide both visual and textual context to a multimodal LLM
+Applications: Searching technical documentation with diagrams, medical imaging QA, product search with photos.
+
+Challenges:
+- Alignment between modalities: Ensuring the model correctly associates visual and linguistic concepts
+- Training data: Paired multimodal data is scarcer and more expensive than text-only data
+- Evaluation: Harder to evaluate generation quality across modalities
+- Modality gap: Even with joint training, text and image embeddings often occupy different regions of the shared space

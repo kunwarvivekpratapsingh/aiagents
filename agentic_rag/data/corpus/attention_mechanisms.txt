@@ -1,0 +1,50 @@
+Attention Mechanisms in Deep Learning
+
+Attention mechanisms allow neural networks to focus on the most relevant parts of the input when producing each element of the output. Introduced to improve machine translation (Bahdanau et al., 2014), attention became the central building block of modern AI with the Transformer architecture.
+
+Intuition:
+When translating a sentence, a human naturally focuses on different source words when generating each target word. Attention formalises this: the model learns to assign importance weights to all input positions when processing each output position.
+
+Bahdanau (Additive) Attention:
+The original neural attention mechanism computes alignment scores between the decoder hidden state and each encoder hidden state using a small feed-forward network. Scores are normalised with softmax to produce attention weights, then used to compute a weighted sum of encoder outputs (context vector). This context vector is concatenated with the decoder state to produce the output.
+
+Scaled Dot-Product Attention:
+Used in the Transformer. Given queries Q, keys K, and values V:
+- Compute raw scores: S = QK^T
+- Scale: S = S / sqrt(d_k) — prevents saturation of softmax for large d_k
+- Normalise: A = softmax(S)
+- Output: O = AV
+
+The query represents "what I'm looking for," keys represent "what I have to offer," and values are the actual content retrieved.
+
+Multi-Head Attention (MHA):
+Runs h attention functions in parallel, each in a lower-dimensional subspace (d_k = d_model / h). Each head can capture different types of relationships (syntactic, semantic, positional). Outputs are concatenated and linearly projected.
+
+Self-Attention vs Cross-Attention:
+- Self-attention: Q, K, V all come from the same sequence. Each token attends to all other tokens in the same sequence.
+- Cross-attention: Q comes from one sequence (decoder), K and V from another (encoder outputs). Allows the decoder to attend to the input.
+
+Causal (Masked) Self-Attention:
+In autoregressive generation, future tokens must not be visible. A causal mask sets attention scores for future positions to -infinity before softmax, ensuring each token only attends to itself and previous tokens.
+
+Computational Complexity:
+Standard self-attention is O(N²·d) in both time and memory, where N is sequence length. This quadratic scaling is the primary bottleneck for long contexts.
+
+Efficient Attention Variants:
+- Sparse Attention (Longformer, BigBird): Each token attends to only a local window plus a few global tokens — O(N) complexity
+- Linear Attention: Approximates full attention in O(N) using kernel methods
+- Flash Attention: Exact attention with IO-aware tiling; same output, much less memory and faster on GPUs
+- Multi-Query Attention (MQA): Single K,V head shared across all Q heads — reduces KV cache memory during inference
+- Grouped Query Attention (GQA): Compromise between MHA and MQA; K,V heads grouped and shared (used in LLaMA 3, Mistral)
+
+KV Cache:
+During autoregressive inference, K and V tensors for all previous tokens are cached to avoid recomputation. KV cache size grows linearly with context length and batch size. GQA and MQA reduce this memory cost.
+
+Attention Patterns and Interpretability:
+Visualising attention weights reveals interpretable patterns: some heads track syntactic dependencies (subject-verb agreement), others track coreference, and some act as positional heads. However, attention weights don't perfectly represent information flow due to residual connections and multiple heads.
+
+Positional Encodings for Attention:
+- Absolute PE: Fixed sinusoidal (original Transformer) or learned (BERT, GPT-2)
+- Relative PE (T5, DeBERTa): Encode distance between tokens rather than absolute position
+- RoPE (Rotary Position Embedding): Encodes positions by rotating Q and K vectors; enables length generalisation (LLaMA, GPT-NeoX)
+- ALiBi: Adds a linear bias to attention scores based on distance; strong length generalisation

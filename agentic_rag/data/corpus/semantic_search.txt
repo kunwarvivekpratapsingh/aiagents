@@ -1,0 +1,67 @@
+Semantic Search
+
+Semantic search is an information retrieval approach that understands the meaning and intent behind a query rather than matching exact keywords. It goes beyond finding documents that contain the same words as the query to finding documents that address the same concept, even when different words are used.
+
+Keyword vs Semantic Search:
+Traditional keyword search (TF-IDF, BM25) matches documents containing the query terms. It fails when:
+- A synonym is used ("automobile" vs "car")
+- The concept is expressed differently ("heart attack" vs "myocardial infarction")
+- The user makes a spelling mistake or uses natural language
+- The query is a question rather than keywords
+
+Semantic search addresses these by understanding meaning through embeddings.
+
+How Semantic Search Works:
+1. Offline (indexing): Each document (or chunk) is converted to a dense vector by an embedding model and stored in a vector database.
+2. Online (retrieval): The user query is encoded with the same embedding model. The top-k most similar document vectors are retrieved using ANN search. Similarity is measured by cosine similarity or dot product.
+
+Embedding Models for Retrieval:
+Retrieval requires bi-encoder architecture — document and query are encoded independently into the same vector space. This allows pre-computation of all document embeddings.
+- Sentence-BERT (SBERT): First widely used bi-encoder for semantic search
+- E5 (Microsoft): Instruction-aware embeddings; prepend "query: " or "passage: " prefixes
+- BGE (BAAI): Strong open-source retrieval embeddings
+- GTE (Alibaba DAMO): Competitive multilingual embeddings
+- OpenAI text-embedding-3-large: High-quality proprietary embeddings
+
+BM25 (Sparse Retrieval):
+BM25 remains highly competitive despite being a keyword-based method:
+BM25(q,d) = Σ IDF(qi) * (tf(qi,d) * (k1+1)) / (tf(qi,d) + k1 * (1 - b + b * |d|/avgdl))
+
+Parameters: k1 (term saturation, typical 1.2–2.0), b (length normalisation, typical 0.75)
+
+Hybrid Search:
+Combining dense (semantic) and sparse (BM25) retrieval consistently outperforms either alone:
+- Run both in parallel
+- Merge ranked lists using Reciprocal Rank Fusion (RRF): score = Σ 1/(k + rank_i)
+- Or learned fusion with a cross-encoder
+Tools: Elasticsearch (with dense vector support), OpenSearch, Weaviate hybrid search, Qdrant hybrid.
+
+Reranking:
+After initial retrieval (top-100 candidates), a cross-encoder reranker scores each candidate against the query jointly. Cross-encoders are more accurate than bi-encoders but too slow for full corpus search.
+- Cross-encoders: Take (query, document) pair as input; produce relevance score
+- ColBERT: Late interaction — token-level MaxSim between query and document tokens; strong accuracy/speed trade-off
+- FlashRank, BGE-Reranker, Cohere Rerank: Popular production rerankers
+
+Query Expansion:
+Expand the query before retrieval to improve recall:
+- Synonym expansion: Add synonyms from a thesaurus or embedding neighbourhood
+- LLM-based expansion: Use an LLM to generate related terms or hypothetical answers
+- HyDE (Hypothetical Document Embedding): Generate a hypothetical document that would answer the query; embed it; use as the search vector. Improves retrieval for complex questions.
+
+Contextual Retrieval (Anthropic):
+Before indexing, use an LLM to generate a brief contextual summary for each chunk, explaining what it's about in the context of the whole document. Prepend this context to the chunk before embedding. Dramatically improves retrieval precision by making each chunk self-contained.
+
+Multi-Vector Retrieval (ColBERT):
+Instead of one vector per document, store one vector per token. At query time, compute the MaxSim score across all pairs of query and document tokens. Higher accuracy, higher storage cost.
+
+Evaluation Metrics for Retrieval:
+- Recall@k: What fraction of relevant documents appear in the top-k results?
+- Precision@k: What fraction of top-k results are relevant?
+- NDCG@k: Normalised Discounted Cumulative Gain — accounts for ranking order
+- MRR (Mean Reciprocal Rank): Average of reciprocal rank of first relevant result
+- MAP (Mean Average Precision): Mean of precision at each relevant document position
+
+Benchmark Datasets:
+- MS-MARCO: 1M+ passages; QA and passage retrieval
+- BEIR: 18 heterogeneous retrieval datasets covering diverse domains
+- MTEB Retrieval: Part of the Massive Text Embedding Benchmark

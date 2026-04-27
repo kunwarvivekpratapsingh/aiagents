@@ -1,0 +1,81 @@
+AI Agents and Tool Use
+
+An AI agent is an autonomous system that perceives its environment, reasons about goals, takes actions, and observes outcomes — iterating until a task is complete. Modern LLM-based agents extend language models with the ability to use external tools, plan multi-step tasks, and maintain memory across interactions.
+
+Agent Architecture:
+A basic LLM agent consists of:
+1. Brain (LLM): The reasoning and planning component
+2. Memory: Stores context, history, and retrieved information
+3. Tools: External capabilities the agent can invoke
+4. Action loop: Observe → Reason → Act → Observe cycle
+
+The ReAct Framework:
+ReAct (Reasoning + Acting) interleaves reasoning traces ("I need to find the population of Paris") with action calls ("Search: population of Paris") and observations ("Paris has 2.1 million residents in the city proper"). The LLM then continues reasoning based on the observation. This chain of thought + tool use is the foundation of most production agent systems.
+
+Tool Use / Function Calling:
+Modern LLMs (Claude, GPT-4, Gemini) support structured tool calling. The model is given tool definitions (name, description, input schema) and can request tool invocations as part of its response. The host application executes the tool and returns results. Common tools:
+- Web search
+- Code interpreter / Python execution
+- File read/write
+- Database queries
+- API calls (weather, calendar, email)
+- Calculator
+
+Planning Strategies:
+
+Chain of Thought (CoT):
+Linear reasoning — the agent thinks step-by-step before acting. Simple and effective for single-path tasks.
+
+Tree of Thoughts (ToT):
+The agent explores multiple reasoning branches, evaluates them, and backtracks when needed. Better for search and planning problems.
+
+MCTS (Monte Carlo Tree Search):
+Probabilistic tree search; used in AlphaGo and increasingly in LLM reasoning with verification.
+
+Plan-and-Solve:
+First generate a plan, then execute each step. Separates planning from execution for complex multi-step tasks.
+
+Memory Types:
+
+In-context Memory:
+The conversation history and injected context within the current prompt. Limited by context window size.
+
+External Memory (RAG):
+A vector database or key-value store that the agent retrieves from at query time. Scales beyond context window limits.
+
+Episodic Memory:
+Records of past interactions, decisions, and outcomes. Retrieved by semantic similarity to current context.
+
+Semantic / Declarative Memory:
+A knowledge base of facts about the world or domain. Can be a graph database, vector store, or structured database.
+
+Multi-Agent Systems:
+Multiple specialised agents collaborate on complex tasks:
+- Orchestrator: Plans and delegates subtasks to worker agents
+- Specialists: Domain experts (researcher, coder, critic, etc.)
+- Critic / Verifier: Reviews and validates other agents' outputs
+
+Frameworks like AutoGen, CrewAI, LangGraph, and the Anthropic Agent SDK enable multi-agent pipelines.
+
+Agentic RAG:
+An agent-enhanced version of Retrieval-Augmented Generation where the agent:
+1. Rewrites the query for better retrieval
+2. Decides whether retrieval is needed at all
+3. Selects the most appropriate source (vector DB, web, APIs)
+4. Evaluates response quality
+5. Iterates if the response is insufficient
+
+This loop significantly improves answer quality compared to single-shot RAG.
+
+Key Challenges:
+- Hallucination in reasoning: The agent can hallucinate tool outputs or intermediate results
+- Tool reliability: External tools can fail, timeout, or return unexpected formats
+- Infinite loops: Agents can get stuck in cycles without a termination condition
+- Context bloat: Long tool outputs fill the context window quickly
+- Security: Prompt injection via tool outputs (the retrieved document instructs the agent to do something harmful)
+
+Agent Evaluation:
+- Task success rate: Did the agent complete the task correctly?
+- Tool call accuracy: Did the agent invoke the right tools with correct parameters?
+- Efficiency: Number of steps taken; unnecessary tool calls
+- Safety: Did the agent refuse harmful requests appropriately?

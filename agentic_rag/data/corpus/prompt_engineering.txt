@@ -1,0 +1,63 @@
+Prompt Engineering
+
+Prompt engineering is the practice of designing and refining input prompts to elicit optimal responses from large language models (LLMs). Since LLMs are highly sensitive to how instructions are phrased, prompt engineering has become a critical skill for AI application development.
+
+Why Prompt Engineering Matters:
+LLMs are trained to predict the most likely continuation of text. A well-crafted prompt primes the model to interpret the task correctly, activate the right knowledge, and format its output appropriately. Small changes in wording can produce dramatically different outputs.
+
+Core Prompting Techniques:
+
+Zero-Shot Prompting:
+Asking the model to perform a task with no examples. Works well for tasks the model has seen frequently during training. Example: "Translate the following English text to French: [text]"
+
+Few-Shot Prompting (In-Context Learning):
+Providing a few input-output examples within the prompt to demonstrate the desired format and task. The model generalises from these examples without gradient updates. Example: showing 3 examples of sentiment classification before the actual input.
+
+Chain-of-Thought (CoT) Prompting:
+Instructing the model to reason step-by-step before giving the final answer. Dramatically improves performance on arithmetic, logical, and multi-step reasoning tasks. Triggered by phrases like "Let's think step by step" or by including CoT examples in few-shot demonstrations.
+
+Zero-Shot CoT:
+Simply appending "Let's think step by step" to a prompt induces chain-of-thought reasoning without examples, often matching or exceeding few-shot CoT performance.
+
+Self-Consistency:
+Generate multiple chain-of-thought reasoning paths (via sampling with temperature > 0), then take the majority vote answer. Improves reliability on reasoning tasks.
+
+ReAct (Reasoning + Acting):
+Interleaves reasoning traces and action steps. The model reasons about what to do, then executes a tool action (e.g., search, code execution), observes the result, and continues reasoning. Used in agentic systems.
+
+Tree of Thoughts (ToT):
+Generalises CoT by exploring multiple reasoning paths as a tree rather than a single chain. Allows backtracking when a path leads to a dead end. Used for complex planning and search problems.
+
+Prompt Components:
+- System prompt: Sets the model's persona, role, constraints, and output format. Typically persistent across a conversation.
+- User message: The actual user query or instruction.
+- Assistant message: Prior model responses (in multi-turn conversations).
+- Context injection: Relevant documents, tool outputs, or memory inserted into the prompt.
+
+Instruction Design Best Practices:
+- Be specific and explicit: "List 3 bullet points" rather than "summarise"
+- Specify output format: JSON, markdown, CSV, etc.
+- Assign a role: "You are an expert database engineer..."
+- Provide constraints: "Answer in 2 sentences max", "Do not include code"
+- Use delimiters: Triple backticks, XML tags, or headers to separate sections
+- Request reasoning: "Explain your reasoning before giving the answer"
+
+Prompt Injection and Security:
+Prompt injection attacks attempt to override the system prompt by embedding adversarial instructions in user input or retrieved documents (indirect injection). Defences include input sanitisation, using separate system/user contexts, and output validation.
+
+Context Window Management:
+As prompts grow with conversation history, tool outputs, and retrieved documents, they can exceed the model's context window. Strategies:
+- Sliding window: Drop oldest turns
+- Summarisation: Compress older context into summaries
+- Retrieval-based memory: Store history externally and retrieve relevant parts
+- Token counting: Monitor and cap prompt length proactively
+
+Prompt Caching:
+Anthropic's prompt caching feature allows prefixes of the prompt (e.g., long system prompts or static document context) to be cached across requests. This reduces latency and cost for prompts with large stable prefixes — critical for production RAG systems with long system prompts.
+
+Evaluation of Prompts:
+Good prompt engineering requires systematic evaluation:
+- Human evaluation: Rate output quality, accuracy, relevance
+- Automated evaluation: Use an LLM-as-judge or task-specific metrics
+- A/B testing: Compare prompt variants on a held-out test set
+- Red-teaming: Stress-test prompts against adversarial inputs

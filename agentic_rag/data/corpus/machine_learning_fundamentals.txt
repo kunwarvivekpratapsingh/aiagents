@@ -1,0 +1,75 @@
+Machine Learning Fundamentals
+
+Machine learning (ML) is a branch of artificial intelligence where systems learn to perform tasks by finding patterns in data, rather than being explicitly programmed with rules. Given enough examples, ML models generalise to make predictions on new, unseen data.
+
+Learning Paradigms:
+
+Supervised Learning:
+The model learns from labelled examples (input-output pairs). The objective is to learn a function f(x) → y that minimises prediction error on new inputs.
+- Classification: Predict a discrete class label (e.g., spam/not spam, digit recognition)
+- Regression: Predict a continuous value (e.g., house prices, stock returns)
+Common algorithms: Linear/logistic regression, decision trees, random forests, gradient boosting (XGBoost, LightGBM), support vector machines, neural networks.
+
+Unsupervised Learning:
+The model learns structure from unlabelled data.
+- Clustering: Group similar items (k-means, DBSCAN, Gaussian mixture models)
+- Dimensionality reduction: Compress high-dimensional data (PCA, t-SNE, UMAP, autoencoders)
+- Density estimation: Learn the data distribution
+- Anomaly detection: Identify unusual samples
+
+Self-Supervised Learning:
+A special case of unsupervised learning where labels are derived from the data itself. The dominant pre-training paradigm for LLMs:
+- Next-token prediction (GPT): Predict the next word in a sequence
+- Masked Language Modelling (BERT): Predict masked-out tokens
+- Contrastive learning (SimCLR, CLIP): Learn that augmented views of the same image are similar
+
+Reinforcement Learning:
+An agent learns by interacting with an environment, taking actions, observing outcomes, and receiving rewards. The goal is to maximise cumulative reward.
+- Policy: Maps states to actions
+- Reward function: Scalar feedback signal
+- Value function: Expected future reward from a state
+Algorithms: Q-learning, SARSA, PPO, SAC, A3C.
+
+Key Concepts:
+
+Loss Function / Objective:
+A measure of how wrong the model's predictions are. Training minimises this.
+- MSE (Mean Squared Error): Regression
+- Cross-entropy: Classification
+- Contrastive loss: Embedding learning
+- RLHF reward: Language model alignment
+
+Gradient Descent Optimisation:
+Parameters are iteratively updated in the direction of the negative gradient of the loss. Variants:
+- SGD: Stochastic (mini-batch) gradient descent
+- Momentum: Accumulate gradient history to accelerate convergence
+- Adam: Adaptive Moment Estimation — combines momentum and per-parameter adaptive learning rates; default for deep learning
+- AdamW: Adam with decoupled weight decay; preferred for LLMs
+- Learning rate schedule: Warm-up then cosine decay or linear decay
+
+Regularisation:
+Techniques to prevent overfitting (poor generalisation):
+- L1/L2 regularisation (weight decay): Penalise large weights
+- Dropout: Randomly zero activations during training; implicit ensemble
+- Early stopping: Stop training when validation loss stops improving
+- Data augmentation: Artificially expand training set with transformations
+- Batch normalisation / Layer normalisation: Stabilise activations
+
+Bias-Variance Trade-off:
+- High bias (underfitting): Model too simple; fails to capture patterns
+- High variance (overfitting): Model too complex; memorises training data
+- Goal: Find the right complexity that generalises well
+
+Evaluation:
+- Train/validation/test split: Train on train set, tune on val set, evaluate once on test set
+- Cross-validation: K-fold splitting for small datasets
+- Metrics by task: Accuracy, F1, AUC-ROC (classification); MAE, RMSE (regression); BLEU, ROUGE (generation)
+
+Feature Engineering (Pre-deep-learning):
+Manually creating informative input features from raw data. Deep learning reduced but didn't eliminate this need — feature selection, normalisation, and encoding still matter for tabular data.
+
+Transfer Learning:
+Pre-train a model on a large general dataset, then fine-tune on a smaller task-specific dataset. Dramatically reduces data requirements. Dominant approach in NLP (BERT, GPT) and computer vision (ImageNet pre-trained models).
+
+MLOps:
+The practice of operationalising machine learning: versioning data and models, automating training pipelines, monitoring model performance in production, and detecting data drift. Tools: MLflow, Weights & Biases, DVC, Kubeflow, SageMaker.

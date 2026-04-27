@@ -1,0 +1,61 @@
+Reinforcement Learning and RLHF
+
+Reinforcement Learning (RL) is a machine learning paradigm where an agent learns to make sequential decisions by interacting with an environment and receiving scalar reward signals. Unlike supervised learning, RL learns from feedback rather than labelled examples.
+
+Core RL Concepts:
+
+Agent: The decision-making entity.
+Environment: The world the agent interacts with.
+State (s): The current situation of the environment.
+Action (a): The decision taken by the agent.
+Reward (r): A scalar feedback signal from the environment.
+Policy (π): A mapping from states to actions (what the agent does).
+Value Function (V): Expected cumulative future reward from a state.
+Q-Function: Expected future reward for taking action a in state s.
+Episode: A sequence of state-action-reward tuples from start to terminal state.
+
+Bellman Equation:
+V(s) = E[r + γ·V(s')] — the value of a state equals the immediate reward plus the discounted value of the next state. The discount factor γ ∈ [0,1] controls how much future rewards are valued.
+
+RL Algorithms:
+
+Q-Learning (Value-Based):
+Off-policy algorithm that learns the optimal Q-function directly. DQN (Deep Q-Network, DeepMind 2013) combined Q-learning with neural networks to beat human performance on Atari games.
+
+Policy Gradient Methods:
+Directly optimise the policy by computing gradients of expected reward with respect to policy parameters. REINFORCE is the simplest; modern variants include A3C, PPO, SAC.
+
+Proximal Policy Optimisation (PPO):
+The most widely used policy gradient algorithm. Clips the policy update ratio to prevent destructive large updates. Strikes a balance between sample efficiency and stability. Used in RLHF for LLMs.
+
+Actor-Critic Methods:
+Combine value-based and policy-based approaches. The actor selects actions; the critic evaluates the value of states. Reduces variance compared to pure policy gradients.
+
+Reinforcement Learning from Human Feedback (RLHF):
+RLHF is the technique that transformed pre-trained LLMs into helpful assistants. Process:
+
+Step 1 — Supervised Fine-Tuning (SFT):
+Fine-tune the base LLM on high-quality human-written demonstrations of desired behaviour. This aligns the model's output distribution toward helpful responses.
+
+Step 2 — Reward Model Training:
+Human annotators rank multiple model responses to the same prompt (pairwise comparisons). A reward model (RM) is trained to predict these preferences — to assign a scalar score reflecting human preference to any response.
+
+Step 3 — RL Optimisation (PPO):
+The SFT model is further fine-tuned using PPO, maximising the reward model's score on generated responses. A KL divergence penalty constrains the model from drifting too far from the SFT baseline, preventing reward hacking.
+
+RLHF Variants:
+- DPO (Direct Preference Optimisation): Bypasses the reward model entirely by directly optimising the LLM on preference data. Simpler and more stable than PPO-based RLHF. Used in LLaMA 3, Mistral, Qwen.
+- GRPO (Group Relative Policy Optimisation): DeepSeek's variant; uses relative group rewards instead of a separate critic.
+- Constitutional AI (CAI, Anthropic): Uses AI-written critiques and revisions to generate preference data, reducing reliance on human feedback.
+
+Reward Hacking:
+When the learned policy over-optimises the imperfect reward model, finding ways to score highly without actually being more helpful (Goodhart's Law). Mitigated by KL penalties, reward model ensembles, and periodic retraining.
+
+RL in LLM Reasoning:
+RL is increasingly used to teach LLMs complex reasoning. OpenAI's o1/o3, DeepSeek-R1, and similar models use RL to improve multi-step mathematical and scientific reasoning by rewarding correct final answers. The model learns to generate long reasoning chains (chain-of-thought) as an internal scratchpad.
+
+Key RL Benchmarks:
+- Atari (ALE): Classic RL benchmark for game-playing agents
+- MuJoCo: Continuous control physics simulation
+- OpenAI Gym: Standardised environment interface
+- AlphaGo/AlphaStar: RL at superhuman level in Go and StarCraft II

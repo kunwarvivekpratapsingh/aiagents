@@ -1,0 +1,26 @@
+version: "3.9"
+
+# Production docker-compose for GCP.
+# The API container uses Firestore as its vector store — no ChromaDB VM needed.
+#
+# Usage (on a GCP VM or locally with Application Default Credentials):
+#   docker compose -f docker-compose.yml -f docker-compose.gcp.yml up -d
+#
+# The container authenticates to Firestore via the instance's service account
+# (on GCP Compute Engine / Cloud Run) or via GOOGLE_APPLICATION_CREDENTIALS
+# (local dev with a service account key file).
+
+services:
+  api:
+    environment:
+      - USE_FIRESTORE=true
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - COLLECTION_NAME=${COLLECTION_NAME:-agentic_rag_docs}
+      # Unset ChromaDB env so embedded mode is never accidentally used
+      - CHROMA_HOST=
+      - CHROMA_DIR=
+    volumes:
+      # Mount ADC credentials when running locally (not needed on GCP VMs/Cloud Run)
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/tmp/adc.json:ro
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json

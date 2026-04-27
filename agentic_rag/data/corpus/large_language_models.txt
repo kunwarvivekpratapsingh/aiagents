@@ -1,0 +1,53 @@
+Large Language Models (LLMs)
+
+A large language model (LLM) is a type of artificial intelligence model trained on massive text corpora to understand and generate human language. LLMs are neural networks with billions of parameters, predominantly based on the Transformer architecture, that learn statistical patterns across vast amounts of text data.
+
+History and Scale:
+Early language models like n-gram models and recurrent neural networks were limited in scale and capability. The 2017 introduction of the Transformer architecture (Vaswani et al., "Attention Is All You Need") enabled parallelisable training and much larger models. GPT-2 (2019, 1.5B parameters), GPT-3 (2020, 175B parameters), PaLM (2022, 540B parameters), and GPT-4 (2023, estimated 1T+ parameters) represent the rapid scaling trend.
+
+Training Process:
+LLMs are trained in multiple stages:
+1. Pre-training: The model is trained on trillions of tokens from the internet, books, code, and other sources using self-supervised learning. The primary task is next-token prediction (causal language modelling) or masked token prediction (BERT-style).
+2. Supervised Fine-Tuning (SFT): The pre-trained model is fine-tuned on curated instruction-response pairs to teach it to follow instructions helpfully.
+3. Reinforcement Learning from Human Feedback (RLHF): Human raters rank model outputs; these preferences train a reward model; the LLM is then optimised with PPO or similar RL algorithms to maximise reward.
+
+Key Capabilities:
+- Text generation: Producing coherent, contextually appropriate text
+- Question answering: Extracting or synthesising answers from context
+- Summarisation: Condensing long documents into key points
+- Translation: Converting text between languages
+- Code generation: Writing, explaining, and debugging code
+- Reasoning: Multi-step logical and mathematical reasoning (chain-of-thought)
+- Classification and extraction: Labelling text or pulling structured data
+
+Emergent Abilities:
+At sufficient scale, LLMs exhibit emergent abilities not seen in smaller models — capabilities that appear suddenly rather than gradually. Examples include few-shot in-context learning (performing tasks from just a few examples in the prompt), chain-of-thought reasoning, and complex analogical reasoning.
+
+Context Window:
+The context window determines how many tokens an LLM can process simultaneously. Early models had 2K–4K token limits. Modern models support 128K (GPT-4 Turbo), 200K (Claude 3), and even 1M+ tokens (Gemini 1.5 Pro). Longer context windows enable processing entire books, large codebases, or extended conversation histories.
+
+Tokenisation:
+LLMs operate on tokens rather than raw characters. A tokeniser (e.g., Byte-Pair Encoding / BPE) splits text into subword units. Approximately 1 token ≈ 4 English characters or ¾ of a word. GPT-4 uses the cl100k_base tokeniser with 100,277 tokens.
+
+Prominent LLM Families:
+- GPT series (OpenAI): GPT-3, ChatGPT, GPT-4, GPT-4o
+- Claude series (Anthropic): Claude 1, 2, 3 (Haiku/Sonnet/Opus), Claude 3.5 Sonnet
+- Gemini (Google DeepMind): Gemini 1.0, 1.5 Pro, Ultra
+- LLaMA (Meta): LLaMA 2, LLaMA 3 (open weights)
+- Mistral: Mistral 7B, Mixtral 8x7B, Mistral Large
+- Falcon, Phi, Qwen, DeepSeek (various organisations)
+
+Inference Techniques:
+- Temperature: Controls output randomness (0 = deterministic, 1+ = creative)
+- Top-p (nucleus sampling): Samples from smallest set of tokens comprising probability mass p
+- Top-k: Restricts sampling to top-k most likely tokens
+- Beam search: Maintains multiple hypotheses during decoding
+- Speculative decoding: Draft model proposes tokens; larger model verifies in parallel
+
+Limitations:
+- Hallucination: Confidently generating false information
+- Knowledge cutoff: Unaware of events after training data cutoff
+- Context length limits: Cannot process unlimited text
+- Bias: Reflects biases present in training data
+- Lack of true understanding: Statistical pattern matching, not grounded cognition
+- Cost: Inference at scale is computationally expensive

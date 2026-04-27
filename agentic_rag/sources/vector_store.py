@@ -85,11 +85,32 @@ class VectorStore:
                     "source": key,
                     "title": meta.get("title") or meta.get("filename") or key,
                     "filetype": meta.get("filetype") or meta.get("source", "?"),
-                    "chunks": 0,
+                    "count": 0,
                 }
-            tally[key]["chunks"] += 1
+            tally[key]["count"] += 1
 
         return sorted(tally.values(), key=lambda x: x["title"].lower())
+
+    def export_all(self) -> list[dict[str, Any]]:
+        """Return all stored chunks as a list of {id, content, metadata} dicts."""
+        if self.count() == 0:
+            return []
+        raw = self._collection.get(include=["documents", "metadatas"])
+        return [
+            {"id": uid, "content": doc, "metadata": meta}
+            for uid, doc, meta in zip(raw["ids"], raw["documents"], raw["metadatas"])
+        ]
+
+    def import_all(self, chunks: list[dict[str, Any]]) -> int:
+        """Upsert exported chunks back into the collection. Returns count upserted."""
+        if not chunks:
+            return 0
+        self.upsert(
+            documents=[c["content"] for c in chunks],
+            metadatas=[c["metadata"] for c in chunks],
+            ids=[c["id"] for c in chunks],
+        )
+        return len(chunks)
 
     def delete_source(self, source: str) -> int:
         """Delete all chunks whose 'source' metadata matches *source*. Returns deleted count."""

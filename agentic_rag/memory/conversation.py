@@ -4,10 +4,14 @@ for injection into the query rewriter and LLM generator.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import ClassVar
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -73,7 +77,6 @@ class ConversationMemory:
         messages: list[dict] = []
         for t in recent:
             messages.append({"role": "user", "content": t.query})
-            # Truncate to avoid bloating context window
             messages.append({"role": "assistant", "content": t.response[: self._SUMMARY_LEN]})
         return messages
 
@@ -93,20 +96,50 @@ class ConversationMemory:
 
 
 class SessionStore:
-    """Process-global registry of ConversationMemory objects keyed by session_id."""
+    """
+    Process-global registry of ConversationMemory objects.
 
-    def __init__(self) -> None:
-        self._store: dict[str, ConversationMemory] = {}
+    Eviction policy (applied on every get_or_create call):
+      1. Expired sessions (idle > ttl_seconds) are removed first.
+      2. If still over max_sessions, the least-recently-used session is evicted (LRU).
+    """
+
+    def __init__(
+        self,
+        max_sessions: int | None = None,
+        ttl_seconds: int | None = None,
+    ) -> None:
+        from ..config import config as _cfg  # lazy import avoids circular dep
+        self._max_sessions = max_sessions if max_sessions is not None else _cfg.max_sessions
+        self._ttl_seconds  = ttl_seconds  if ttl_seconds  is not None else _cfg.session_ttl_seconds
+        # OrderedDict preserves insertion order for LRU eviction
+        self._store: OrderedDict[str, tuple[ConversationMemory, float]] = OrderedDict()
         self._lock = threading.Lock()
 
-    def get_or_create(self, session_id: str) -> ConversationMemory:
-        with self._lock:
-            if session_id not in self._store:
-                self._store[session_id] = ConversationMemory(session_id)
-            return self._store[session_id]
+    # ------------------------------------------------------------------
+    # Write
+    # ------------------------------------------------------------------
 
-    def get(self, session_id: str) -> ConversationMemory | None:
-        return self._store.get(session_id)
+    def get_or_create(self, session_id: str) -> ConversationMemory:
+        now = time.time()
+        with self._lock:
+            self._evict_expired(now)
+
+            if session_id in self._store:
+                mem, _ = self._store[session_id]
+                # Refresh access time and move to end (most-recently-used)
+                self._store.move_to_end(session_id)
+                self._store[session_id] = (mem, now)
+                return mem
+
+            # Evict LRU entries until under capacity
+            while len(self._store) >= self._max_sessions:
+                evicted_id, _ = self._store.popitem(last=False)
+                logger.debug("SessionStore: evicted LRU session %s", evicted_id)
+
+            mem = ConversationMemory(session_id)
+            self._store[session_id] = (mem, now)
+            return mem
 
     def delete(self, session_id: str) -> bool:
         with self._lock:
@@ -115,5 +148,44 @@ class SessionStore:
                 return True
             return False
 
+    def clear_all(self) -> int:
+        with self._lock:
+            count = len(self._store)
+            self._store.clear()
+            return count
+
+    # ------------------------------------------------------------------
+    # Read
+    # ------------------------------------------------------------------
+
+    def get(self, session_id: str) -> ConversationMemory | None:
+        with self._lock:
+            entry = self._store.get(session_id)
+            if entry is None:
+                return None
+            mem, ts = entry
+            if time.time() - ts > self._ttl_seconds:
+                del self._store[session_id]
+                return None
+            return mem
+
     def list_sessions(self) -> list[str]:
-        return list(self._store.keys())
+        with self._lock:
+            now = time.time()
+            return [sid for sid, (_, ts) in self._store.items()
+                    if now - ts <= self._ttl_seconds]
+
+    def session_count(self) -> int:
+        return len(self._store)
+
+    # ------------------------------------------------------------------
+    # Private
+    # ------------------------------------------------------------------
+
+    def _evict_expired(self, now: float) -> None:
+        expired = [sid for sid, (_, ts) in self._store.items()
+                   if now - ts > self._ttl_seconds]
+        for sid in expired:
+            del self._store[sid]
+        if expired:
+            logger.debug("SessionStore: expired %d session(s)", len(expired))

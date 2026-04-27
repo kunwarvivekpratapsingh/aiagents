@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -9,12 +10,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agentic_rag.api.app import create_app
+from agentic_rag.config import config as _config
 from agentic_rag.memory.conversation import ConversationMemory, SessionStore
 from agentic_rag.pipeline.rag_pipeline import PipelineState
 from agentic_rag.sources.vector_store import VectorStore
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_state(*, response="Test answer.", source="vector_db", score=8, iterations=1, complete=True):
     s = PipelineState(original_query="test query")
@@ -26,6 +28,11 @@ def _make_state(*, response="Test answer.", source="vector_db", score=8, iterati
     return s
 
 
+_TEST_API_KEY = "test-api-key-12345"
+
+
+# ── Fixtures ──────────────────────────────────────────────────────────────────
+
 @pytest.fixture()
 def mock_vs():
     vs = MagicMock(spec=VectorStore)
@@ -33,6 +40,9 @@ def mock_vs():
     vs.list_sources.return_value = [
         {"source": "/docs/ai.txt", "count": 10},
         {"source": "/docs/ml.txt", "count": 8},
+    ]
+    vs.export_all.return_value = [
+        {"id": "1", "content": "AI content", "metadata": {"source": "/docs/ai.txt"}},
     ]
     return vs
 
@@ -47,21 +57,37 @@ def mock_pipeline():
 
 @pytest.fixture()
 def client(mock_vs, mock_pipeline):
+    """Test client with auth DISABLED (empty api_key)."""
     app = create_app()
-
-    # Override lifespan — inject mocks directly
     app.state.vector_store  = mock_vs
     app.state.pipeline      = mock_pipeline
     app.state.session_store = SessionStore()
 
-    # Patch lifespan so TestClient doesn't try to initialise real components
     with patch("agentic_rag.api.app.VectorStore", return_value=mock_vs), \
-         patch("agentic_rag.api.app.AgenticRAGPipeline", return_value=mock_pipeline):
+         patch("agentic_rag.api.app.AgenticRAGPipeline", return_value=mock_pipeline), \
+         patch.object(_config, "api_key", ""), \
+         patch.object(_config, "anthropic_api_key", "test-key"):
         with TestClient(app) as c:
             yield c
 
 
-# ── Health ─────────────────────────────────────────────────────────────────────
+@pytest.fixture()
+def auth_client(mock_vs, mock_pipeline):
+    """Test client with auth ENABLED via _TEST_API_KEY."""
+    app = create_app()
+    app.state.vector_store  = mock_vs
+    app.state.pipeline      = mock_pipeline
+    app.state.session_store = SessionStore()
+
+    with patch("agentic_rag.api.app.VectorStore", return_value=mock_vs), \
+         patch("agentic_rag.api.app.AgenticRAGPipeline", return_value=mock_pipeline), \
+         patch.object(_config, "api_key", _TEST_API_KEY), \
+         patch.object(_config, "anthropic_api_key", "test-key"):
+        with TestClient(app) as c:
+            yield c
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
 
 class TestHealth:
     def test_health_ok(self, client):
@@ -81,8 +107,52 @@ class TestHealth:
         assert "vector_store" in body["checks"]
         assert "anthropic_api_key" in body["checks"]
 
+    def test_health_returns_request_id_header(self, client):
+        r = client.get("/health")
+        assert "x-request-id" in r.headers
 
-# ── Chat ───────────────────────────────────────────────────────────────────────
+    def test_health_accepts_custom_request_id(self, client):
+        r = client.get("/health", headers={"X-Request-ID": "my-req-123"})
+        assert r.headers["x-request-id"] == "my-req-123"
+
+
+# ── Authentication ────────────────────────────────────────────────────────────
+
+class TestAuthentication:
+    def test_no_key_returns_401_when_auth_enabled(self, auth_client):
+        r = auth_client.post("/chat", json={"query": "Hello"})
+        assert r.status_code == 401
+
+    def test_wrong_key_returns_401(self, auth_client):
+        r = auth_client.post("/chat", json={"query": "Hello"},
+                             headers={"X-API-Key": "wrong-key"})
+        assert r.status_code == 401
+
+    def test_correct_key_passes(self, auth_client):
+        r = auth_client.post("/chat", json={"query": "What is RAG?"},
+                             headers={"X-API-Key": _TEST_API_KEY})
+        assert r.status_code == 200
+
+    def test_bearer_token_accepted(self, auth_client):
+        r = auth_client.post("/chat", json={"query": "What is RAG?"},
+                             headers={"Authorization": f"Bearer {_TEST_API_KEY}"})
+        assert r.status_code == 200
+
+    def test_health_exempt_from_auth(self, auth_client):
+        r = auth_client.get("/health")
+        assert r.status_code == 200  # no API key header
+
+    def test_health_ready_exempt_from_auth(self, auth_client):
+        r = auth_client.get("/health/ready")
+        assert r.status_code == 200  # no API key header
+
+    def test_auth_disabled_when_api_key_empty(self, client):
+        # client fixture has api_key="" — all routes should be accessible
+        r = client.post("/chat", json={"query": "Hello"})
+        assert r.status_code == 200
+
+
+# ── Chat ──────────────────────────────────────────────────────────────────────
 
 class TestChat:
     def test_basic_chat(self, client, mock_pipeline):
@@ -135,11 +205,11 @@ class TestChat:
         lines = [l for l in r.text.split("\n") if l.startswith("data:")]
         payloads = [json.loads(l[len("data: "):]) for l in lines]
         types = {p["type"] for p in payloads}
-        assert "session" in types        # session_id preamble
+        assert "session" in types
         assert "done" in types
 
 
-# ── Sessions ───────────────────────────────────────────────────────────────────
+# ── Sessions ──────────────────────────────────────────────────────────────────
 
 class TestSessions:
     def test_get_nonexistent_session(self, client):
@@ -172,7 +242,52 @@ class TestSessions:
         assert "s2" in sessions
 
 
-# ── Documents ──────────────────────────────────────────────────────────────────
+# ── Session TTL ────────────────────────────────────────────────────────────────
+
+class TestSessionTTL:
+    def test_expired_session_returns_none_on_get(self):
+        store = SessionStore(max_sessions=100, ttl_seconds=1)
+        store.get_or_create("ttl-test")
+        # Patch time to simulate expiry
+        with patch("agentic_rag.memory.conversation.time") as mock_time:
+            mock_time.time.return_value = time.time() + 7200  # 2 hours later
+            result = store.get("ttl-test")
+        assert result is None
+
+    def test_expired_session_not_in_list(self):
+        store = SessionStore(max_sessions=100, ttl_seconds=1)
+        store.get_or_create("ttl-list-test")
+        with patch("agentic_rag.memory.conversation.time") as mock_time:
+            mock_time.time.return_value = time.time() + 7200
+            sessions = store.list_sessions()
+        assert "ttl-list-test" not in sessions
+
+    def test_lru_eviction_at_capacity(self):
+        store = SessionStore(max_sessions=3, ttl_seconds=3600)
+        store.get_or_create("a")
+        store.get_or_create("b")
+        store.get_or_create("c")
+        # Adding 4th should evict "a" (LRU)
+        store.get_or_create("d")
+        assert store.get("a") is None
+        assert store.get("b") is not None
+        assert store.get("c") is not None
+        assert store.get("d") is not None
+
+    def test_access_refreshes_ttl_order(self):
+        store = SessionStore(max_sessions=3, ttl_seconds=3600)
+        store.get_or_create("a")
+        store.get_or_create("b")
+        store.get_or_create("c")
+        # Re-access "a" to make it most-recently-used
+        store.get_or_create("a")
+        # Adding 4th should evict "b" (now LRU)
+        store.get_or_create("d")
+        assert store.get("b") is None
+        assert store.get("a") is not None
+
+
+# ── Documents ─────────────────────────────────────────────────────────────────
 
 class TestDocuments:
     def test_list_documents(self, client):
@@ -183,7 +298,7 @@ class TestDocuments:
         assert body["total_chunks"] == 18
 
     def test_upload_txt_document(self, client, mock_vs):
-        mock_vs.count.side_effect = [42, 45]  # before → after
+        mock_vs.count.side_effect = [42, 45]
         content = b"This is a test document with enough content to form at least one chunk."
         r = client.post(
             "/documents/upload",
@@ -218,7 +333,36 @@ class TestDocuments:
         assert r.status_code == 400
 
 
-# ── Input validation edge cases ────────────────────────────────────────────────
+# ── Backup / Export ───────────────────────────────────────────────────────────
+
+class TestBackup:
+    def test_export_returns_chunks(self, client, mock_vs):
+        r = client.get("/backup/export")
+        assert r.status_code == 200
+        body = r.json()
+        assert "chunks" in body
+        assert "chunk_count" in body
+        assert "exported_at" in body
+        assert body["chunk_count"] == 1
+
+    def test_restore_accepts_chunks(self, client, mock_vs):
+        mock_vs.import_all.return_value = 2
+        payload = {
+            "chunks": [
+                {"id": "1", "content": "doc1", "metadata": {"source": "a.txt"}},
+                {"id": "2", "content": "doc2", "metadata": {"source": "b.txt"}},
+            ]
+        }
+        r = client.post("/backup/restore", json=payload)
+        assert r.status_code == 200
+        assert r.json()["restored"] == 2
+
+    def test_restore_empty_body_rejected(self, client):
+        r = client.post("/backup/restore", json={"chunks": []})
+        assert r.status_code == 400
+
+
+# ── Input validation edge cases ───────────────────────────────────────────────
 
 class TestInputValidation:
     @pytest.mark.parametrize("query", [

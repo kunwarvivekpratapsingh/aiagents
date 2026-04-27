@@ -52,12 +52,14 @@ async def upload_document(file: UploadFile, vs: VectorStoreDep) -> UploadRespons
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
-    # Write to a temp file so our loaders can read it from disk
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = Path(tmp.name)
-
+    # Write to a temp file so loaders can read from disk.
+    # tmp_path is set before the try block so the finally clause is always safe.
+    tmp_path: Path | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+
         before = vs.count()
         ingest_file(vs, tmp_path)
         after = vs.count()
@@ -66,7 +68,8 @@ async def upload_document(file: UploadFile, vs: VectorStoreDep) -> UploadRespons
         logger.error("Upload ingest failed for %s: %s", file.filename, exc)
         raise HTTPException(status_code=422, detail=f"Failed to process file: {exc}") from exc
     finally:
-        tmp_path.unlink(missing_ok=True)
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
 
     return UploadResponse(
         filename=file.filename,

@@ -14,7 +14,20 @@ logger = logging.getLogger(__name__)
 
 class VectorStore:
     def __init__(self) -> None:
-        self._client = chromadb.PersistentClient(path=config.chroma_persist_dir)
+        if config.chroma_host:
+            # HTTP client mode — connects to a separate ChromaDB server.
+            # Used in production (Cloud Run, Docker Compose with separate service).
+            self._client = chromadb.HttpClient(
+                host=config.chroma_host,
+                port=config.chroma_port,
+            )
+            logger.info("ChromaDB HTTP client → %s:%d", config.chroma_host, config.chroma_port)
+        else:
+            # Embedded mode — local SQLite file.
+            # Fine for dev and single-VM deployments.
+            self._client = chromadb.PersistentClient(path=config.chroma_persist_dir)
+            logger.info("ChromaDB embedded → %s", config.chroma_persist_dir)
+
         # DefaultEmbeddingFunction uses a bundled ONNX MiniLM model —
         # no HuggingFace download required, works fully offline.
         self._ef = DefaultEmbeddingFunction()

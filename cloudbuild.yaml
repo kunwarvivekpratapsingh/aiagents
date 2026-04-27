@@ -1,0 +1,80 @@
+# Cloud Build — triggered on every push to main.
+# Runs tests → builds image → pushes to Artifact Registry → deploys to Cloud Run.
+#
+# First-time setup:
+#   gcloud builds triggers create github \
+#     --repo-name=aiagents --repo-owner=YOUR_ORG \
+#     --branch-pattern='^main$' \
+#     --build-config=cloudbuild.yaml
+
+substitutions:
+  _REGION: us-central1
+  _REPO: rag-api
+  _SERVICE: rag-api
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/agentic-rag
+
+steps:
+  # ── 1. Run tests ─────────────────────────────────────────────────────────────
+  - name: python:3.11-slim
+    id: test
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install -r requirements.txt -q
+        python -m pytest tests/ -q --tb=short
+    env:
+      - ANTHROPIC_API_KEY=test-key-ci
+      - API_KEY=
+      - JSON_LOGS=false
+
+  # ── 2. Build Docker image ────────────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - -t
+      - ${_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_IMAGE}:latest
+      - --cache-from
+      - ${_IMAGE}:latest
+      - .
+    waitFor: [test]
+
+  # ── 3. Push to Artifact Registry ─────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    args: [push, --all-tags, ${_IMAGE}]
+    waitFor: [build]
+
+  # ── 4a. Deploy API to Cloud Run ───────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: deploy-api
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --execution-environment=gen2
+      - --memory=2Gi
+      - --cpu=2
+      - --min-instances=1
+      - --max-instances=10
+      - --concurrency=80
+      - --timeout=600
+      - --no-allow-unauthenticated
+      - --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest,API_KEY=rag-api-key:latest
+      - --set-env-vars=CHROMA_HOST=${_CHROMA_HOST},JSON_LOGS=true,LOG_LEVEL=INFO
+    waitFor: [push]
+
+images:
+  - ${_IMAGE}:${SHORT_SHA}
+  - ${_IMAGE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

@@ -20,7 +20,12 @@ class Config:
     model: str = field(default_factory=lambda: os.getenv("MODEL", "claude-sonnet-4-6"))
 
     # ── ChromaDB ───────────────────────────────────────────────────────────
+    # Local embedded mode (default, for dev/single-VM):
     chroma_persist_dir: str = field(default_factory=lambda: os.getenv("CHROMA_DIR", "./chroma_db"))
+    # Remote HTTP mode (set CHROMA_HOST to enable, e.g. "chromadb" in docker-compose
+    # or the internal Cloud Run URL on GCP):
+    chroma_host: str = field(default_factory=lambda: os.getenv("CHROMA_HOST", ""))
+    chroma_port: int = field(default_factory=lambda: int(os.getenv("CHROMA_PORT", "8001")))
     collection_name: str = field(default_factory=lambda: os.getenv("COLLECTION_NAME", "agentic_rag_docs"))
 
     # ── Pipeline ───────────────────────────────────────────────────────────

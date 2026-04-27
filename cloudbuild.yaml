@@ -1,20 +1,19 @@
 # Cloud Build pipeline — runs on every push to main.
 # Triggered automatically by deploy.sh or manually via:
-#   gcloud builds submit --config=cloudbuild.yaml \
-#     --substitutions=_CHROMA_HOST=10.x.x.x
+#   gcloud builds submit --config=cloudbuild.yaml
 #
 # Required substitutions (set in the Cloud Build trigger):
-#   _CHROMA_HOST  — internal IP of the ChromaDB VM
+#   _GCP_PROJECT_ID   — GCP project ID (for Firestore connection)
 #
 # Optional overrides:
-#   _REGION, _REPO, _SERVICE
+#   _REGION, _REPO, _SERVICE, _COLLECTION_NAME
 
 substitutions:
-  _REGION:       us-central1
-  _REPO:         rag-api
-  _SERVICE:      rag-api
-  _CHROMA_HOST:  ""       # set in trigger; empty = embedded mode (tests only)
-  _CHROMA_PORT:  "8001"
+  _REGION:          us-central1
+  _REPO:            rag-api
+  _SERVICE:         rag-api
+  _GCP_PROJECT_ID:  ""        # set in trigger; empty = uses ADC project
+  _COLLECTION_NAME: agentic_rag_docs
 
 options:
   logging:     CLOUD_LOGGING_ONLY
@@ -34,6 +33,7 @@ steps:
       - ANTHROPIC_API_KEY=test-key-ci
       - API_KEY=
       - JSON_LOGS=false
+      - USE_FIRESTORE=false   # tests use mocked ChromaDB; no GCP creds in CI
 
   # ── 2. Build Docker image ────────────────────────────────────────────────────
   - name: gcr.io/cloud-builders/docker
@@ -73,13 +73,13 @@ steps:
       - --execution-environment=gen2
       - --memory=2Gi
       - --cpu=2
-      - --min-instances=1
+      - --min-instances=0
       - --max-instances=10
       - --concurrency=80
       - --timeout=600
       - --no-allow-unauthenticated
       - --set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest,API_KEY=rag-api-key:latest
-      - --set-env-vars=CHROMA_HOST=${_CHROMA_HOST},CHROMA_PORT=${_CHROMA_PORT},JSON_LOGS=true,LOG_LEVEL=INFO,WORKERS=1
+      - --set-env-vars=USE_FIRESTORE=true,GCP_PROJECT_ID=${_GCP_PROJECT_ID},COLLECTION_NAME=${_COLLECTION_NAME},JSON_LOGS=true,LOG_LEVEL=INFO,WORKERS=1
       - --quiet
 
   # ── 5. Smoke test ────────────────────────────────────────────────────────────

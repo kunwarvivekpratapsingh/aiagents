@@ -63,7 +63,7 @@ def client(mock_vs, mock_pipeline):
     app.state.pipeline      = mock_pipeline
     app.state.session_store = SessionStore()
 
-    with patch("agentic_rag.api.app.VectorStore", return_value=mock_vs), \
+    with patch("agentic_rag.api.app.create_vector_store", return_value=mock_vs), \
          patch("agentic_rag.api.app.AgenticRAGPipeline", return_value=mock_pipeline), \
          patch.object(_config, "api_key", ""), \
          patch.object(_config, "anthropic_api_key", "test-key"):
@@ -79,7 +79,7 @@ def auth_client(mock_vs, mock_pipeline):
     app.state.pipeline      = mock_pipeline
     app.state.session_store = SessionStore()
 
-    with patch("agentic_rag.api.app.VectorStore", return_value=mock_vs), \
+    with patch("agentic_rag.api.app.create_vector_store", return_value=mock_vs), \
          patch("agentic_rag.api.app.AgenticRAGPipeline", return_value=mock_pipeline), \
          patch.object(_config, "api_key", _TEST_API_KEY), \
          patch.object(_config, "anthropic_api_key", "test-key"):

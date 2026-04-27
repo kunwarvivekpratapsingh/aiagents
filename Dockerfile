@@ -26,6 +26,10 @@ COPY agentic_rag/ ./agentic_rag/
 COPY server.py .
 COPY main.py .
 
+# Pre-cache the ONNX embedding model so the first request is instant.
+# The model is ~90 MB and downloads from HuggingFace Hub at import time.
+RUN python -c "from chromadb.utils.embedding_functions import DefaultEmbeddingFunction; DefaultEmbeddingFunction()"
+
 # Non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser \
     && mkdir -p /app/chroma_db /app/logs \

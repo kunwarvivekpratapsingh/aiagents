@@ -19,14 +19,17 @@ class Config:
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     model: str = field(default_factory=lambda: os.getenv("MODEL", "claude-sonnet-4-6"))
 
-    # ── ChromaDB ───────────────────────────────────────────────────────────
-    # Local embedded mode (default, for dev/single-VM):
+    # ── ChromaDB (local dev) ───────────────────────────────────────────────
     chroma_persist_dir: str = field(default_factory=lambda: os.getenv("CHROMA_DIR", "./chroma_db"))
-    # Remote HTTP mode (set CHROMA_HOST to enable, e.g. "chromadb" in docker-compose
-    # or the internal Cloud Run URL on GCP):
     chroma_host: str = field(default_factory=lambda: os.getenv("CHROMA_HOST", ""))
     chroma_port: int = field(default_factory=lambda: int(os.getenv("CHROMA_PORT", "8001")))
     collection_name: str = field(default_factory=lambda: os.getenv("COLLECTION_NAME", "agentic_rag_docs"))
+
+    # ── GCP / Firestore (production) ───────────────────────────────────────
+    # Set USE_FIRESTORE=true to replace ChromaDB with Firestore Vector Search.
+    # GCP_PROJECT_ID is auto-detected from ADC when running on Cloud Run.
+    use_firestore: bool = field(default_factory=lambda: _bool("USE_FIRESTORE", False))
+    gcp_project_id: str = field(default_factory=lambda: os.getenv("GCP_PROJECT_ID", ""))
 
     # ── Pipeline ───────────────────────────────────────────────────────────
     max_iterations: int = field(default_factory=lambda: int(os.getenv("MAX_ITERATIONS", "3")))

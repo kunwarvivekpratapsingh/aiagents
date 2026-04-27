@@ -12,7 +12,7 @@ from ..config import config
 from ..logging_config import configure_logging
 from ..memory.conversation import SessionStore
 from ..pipeline.rag_pipeline import AgenticRAGPipeline
-from ..sources.vector_store import VectorStore
+from ..sources.vector_store import VectorStore, create_vector_store
 from .middleware import (
     AccessLogMiddleware,
     AuthMiddleware,
@@ -47,7 +47,7 @@ async def _lifespan(app: FastAPI):
         )
 
     logger.info("Starting Agentic RAG API (model=%s)", config.model)
-    vs = VectorStore()
+    vs = create_vector_store()
     app.state.vector_store  = vs
     app.state.pipeline      = AgenticRAGPipeline(vs)
     app.state.session_store = SessionStore()

@@ -21,6 +21,9 @@ duckduckgo-search>=6.0.0
 # Optional — Wikipedia corpus augmentation
 wikipedia-api>=0.6.0
 
+# GCP — Firestore vector store backend (used when USE_FIRESTORE=true)
+google-cloud-firestore>=2.19.0
+
 # Testing
 pytest>=8.0.0
 httpx>=0.27.0

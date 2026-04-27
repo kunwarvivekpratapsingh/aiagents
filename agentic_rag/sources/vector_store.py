@@ -138,3 +138,15 @@ class VectorStore:
         if ids_to_delete:
             self._collection.delete(ids=ids_to_delete)
         return len(ids_to_delete)
+
+
+def create_vector_store() -> "VectorStore":
+    """Return the configured vector store backend.
+
+    USE_FIRESTORE=true → FirestoreVectorStore (GCP-native, always-free).
+    Otherwise         → VectorStore (ChromaDB, for local dev).
+    """
+    if config.use_firestore:
+        from .firestore_vector_store import FirestoreVectorStore  # lazy import
+        return FirestoreVectorStore()
+    return VectorStore()

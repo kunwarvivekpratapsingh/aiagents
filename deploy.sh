@@ -2,16 +2,21 @@
 # =============================================================================
 # deploy.sh — One-command GCP deployment for the Agentic RAG API
 #
+# Architecture (zero VM cost):
+#   Cloud Run (FastAPI) + Firestore Vector Search + Secret Manager
+#   Total cost: ~$0/month on GCP always-free tier
+#
 # What this does:
 #   1. Validates prerequisites (gcloud, docker, jq)
 #   2. Enables all required GCP APIs
 #   3. Creates Artifact Registry repository
 #   4. Stores secrets in Secret Manager
-#   5. Creates a small VM running the ChromaDB HTTP server
-#   6. Builds and pushes the Docker image
-#   7. Deploys the FastAPI app to Cloud Run
-#   8. Wires Cloud Build trigger for auto-deploy on git push
-#   9. Prints the live URL and a test command
+#   5. Creates Firestore database + vector index
+#   6. Grants Cloud Run SA Firestore read/write access
+#   7. Builds and pushes the Docker image
+#   8. Deploys the FastAPI app to Cloud Run
+#   9. Wires Cloud Build trigger for auto-deploy on git push
+#  10. Prints the live URL and a test command
 #
 # Usage:
 #   chmod +x deploy.sh
@@ -39,14 +44,14 @@ step()    { echo -e "\n${BOLD}── $* ─────────────�
 # ── Configuration (override with env vars) ────────────────────────────────────
 PROJECT_ID="${GCP_PROJECT_ID:-}"
 REGION="${GCP_REGION:-us-central1}"
-ZONE="${GCP_ZONE:-${REGION}-a}"
 REPO_NAME="${ARTIFACT_REPO:-rag-api}"
 SERVICE_NAME="${CLOUD_RUN_SERVICE:-rag-api}"
-CHROMA_VM_NAME="${CHROMA_VM:-rag-chromadb}"
-CHROMA_VM_TYPE="${CHROMA_VM_TYPE:-e2-small}"
-CHROMA_DISK_SIZE="${CHROMA_DISK_SIZE:-50GB}"
+COLLECTION_NAME="${COLLECTION_NAME:-agentic_rag_docs}"
 GITHUB_ORG="${GITHUB_ORG:-}"
 GITHUB_REPO="${GITHUB_REPO:-aiagents}"
+
+# MiniLM-L6-v2 output dimension (must match the ONNX model in the container)
+EMBEDDING_DIM=384
 
 # ── Step 0: Prerequisites ─────────────────────────────────────────────────────
 step "Checking prerequisites"
@@ -69,6 +74,7 @@ fi
 
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/agentic-rag"
+CR_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
 success "Project: ${PROJECT_ID} (${PROJECT_NUMBER})"
 success "Region:  ${REGION}"
@@ -79,7 +85,7 @@ step "Enabling GCP APIs"
 
 gcloud services enable \
   run.googleapis.com \
-  compute.googleapis.com \
+  firestore.googleapis.com \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
   cloudbuild.googleapis.com \
@@ -138,71 +144,39 @@ else
     --secret=rag-api-key --project="$PROJECT_ID")
 fi
 
-# ── Step 4: ChromaDB VM ────────────────────────────────────────────────────────
-step "Creating ChromaDB VM"
+# ── Step 4: Firestore database + vector index ─────────────────────────────────
+step "Setting up Firestore (free managed vector store)"
 
-if ! gcloud compute instances describe "$CHROMA_VM_NAME" \
-     --zone="$ZONE" --project="$PROJECT_ID" &>/dev/null; then
-
-  gcloud compute instances create "$CHROMA_VM_NAME" \
-    --machine-type="$CHROMA_VM_TYPE" \
-    --image-family=debian-12 \
-    --image-project=debian-cloud \
-    --boot-disk-size="$CHROMA_DISK_SIZE" \
-    --boot-disk-type=pd-ssd \
-    --zone="$ZONE" \
-    --project="$PROJECT_ID" \
-    --no-address \
-    --metadata=startup-script='#!/bin/bash
-      set -e
-      apt-get update -q
-      curl -fsSL https://get.docker.com | sh
-      mkdir -p /data/chroma
-      docker run -d --restart=always --name chromadb \
-        -p 8001:8000 \
-        -v /data/chroma:/chroma/chroma \
-        -e IS_PERSISTENT=TRUE \
-        -e ANONYMIZED_TELEMETRY=FALSE \
-        chromadb/chroma:latest
-      echo "ChromaDB started" > /tmp/chromadb-ready
-    '
-
-  success "Created VM: ${CHROMA_VM_NAME}"
-  info "Waiting 60s for VM startup script to complete..."
-  sleep 60
+# Create Firestore database in native mode (once per project)
+if ! gcloud firestore databases describe \
+     --project="$PROJECT_ID" &>/dev/null 2>&1; then
+  gcloud firestore databases create \
+    --location="$REGION" \
+    --type=firestore-native \
+    --project="$PROJECT_ID"
+  success "Created Firestore database"
 else
-  info "VM ${CHROMA_VM_NAME} already exists"
+  info "Firestore database already exists"
 fi
 
-CHROMA_INTERNAL_IP=$(gcloud compute instances describe "$CHROMA_VM_NAME" \
-  --zone="$ZONE" --project="$PROJECT_ID" \
-  --format='value(networkInterfaces[0].networkIP)')
+# Create composite vector index (needed for find_nearest() queries).
+# Idempotent: gcloud exits 0 if the index already exists.
+info "Creating vector index on collection '${COLLECTION_NAME}' (dim=${EMBEDDING_DIM})..."
+gcloud firestore indexes composite create \
+  --collection-group="$COLLECTION_NAME" \
+  --query-scope=COLLECTION \
+  --field-config="field-path=embedding,vector-config={\"dimension\":\"${EMBEDDING_DIM}\",\"flat\":{}}" \
+  --project="$PROJECT_ID" \
+  --quiet 2>/dev/null || info "Vector index already exists or creation queued"
 
-success "ChromaDB internal IP: ${CHROMA_INTERNAL_IP}"
+success "Firestore ready (always-free: 50K reads/day, 20K writes/day, 1 GB storage)"
 
-# Firewall rule: allow Cloud Run to reach ChromaDB on port 8001
-if ! gcloud compute firewall-rules describe allow-chromadb-internal \
-     --project="$PROJECT_ID" &>/dev/null; then
-  gcloud compute firewall-rules create allow-chromadb-internal \
-    --direction=INGRESS \
-    --action=ALLOW \
-    --rules=tcp:8001 \
-    --source-ranges=0.0.0.0/0 \
-    --target-tags=chromadb-server \
-    --project="$PROJECT_ID"
-
-  gcloud compute instances add-tags "$CHROMA_VM_NAME" \
-    --tags=chromadb-server \
-    --zone="$ZONE" \
-    --project="$PROJECT_ID"
-fi
-
-# ── Step 5: Grant Cloud Build permissions ─────────────────────────────────────
-step "Setting IAM permissions for Cloud Build"
+# ── Step 5: IAM permissions ───────────────────────────────────────────────────
+step "Setting IAM permissions"
 
 CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-CR_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
+# Cloud Build: push images, deploy to Cloud Run, read secrets
 for role in roles/run.admin roles/iam.serviceAccountUser \
             roles/secretmanager.secretAccessor roles/artifactregistry.writer; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -211,7 +185,7 @@ for role in roles/run.admin roles/iam.serviceAccountUser \
     --condition=None --quiet 2>/dev/null || true
 done
 
-# Cloud Run runtime SA needs to read secrets
+# Cloud Run runtime SA: read secrets
 gcloud secrets add-iam-policy-binding anthropic-api-key \
   --member="serviceAccount:${CR_SA}" \
   --role=roles/secretmanager.secretAccessor \
@@ -221,6 +195,12 @@ gcloud secrets add-iam-policy-binding rag-api-key \
   --member="serviceAccount:${CR_SA}" \
   --role=roles/secretmanager.secretAccessor \
   --project="$PROJECT_ID" --quiet 2>/dev/null || true
+
+# Cloud Run runtime SA: read/write Firestore
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${CR_SA}" \
+  --role=roles/datastore.user \
+  --condition=None --quiet 2>/dev/null || true
 
 success "IAM permissions set"
 
@@ -250,13 +230,13 @@ gcloud run deploy "$SERVICE_NAME" \
   --execution-environment=gen2 \
   --memory=2Gi \
   --cpu=2 \
-  --min-instances=1 \
+  --min-instances=0 \
   --max-instances=10 \
   --concurrency=80 \
   --timeout=600 \
   --no-allow-unauthenticated \
   --set-secrets="ANTHROPIC_API_KEY=anthropic-api-key:latest,API_KEY=rag-api-key:latest" \
-  --set-env-vars="CHROMA_HOST=${CHROMA_INTERNAL_IP},CHROMA_PORT=8001,JSON_LOGS=true,LOG_LEVEL=INFO,WORKERS=1" \
+  --set-env-vars="USE_FIRESTORE=true,GCP_PROJECT_ID=${PROJECT_ID},COLLECTION_NAME=${COLLECTION_NAME},JSON_LOGS=true,LOG_LEVEL=INFO,WORKERS=1" \
   --quiet
 
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
@@ -269,7 +249,6 @@ success "Deployed: ${SERVICE_URL}"
 step "Setting up Cloud Build trigger"
 
 if [[ -n "$GITHUB_ORG" ]]; then
-  # Check if trigger already exists
   if ! gcloud builds triggers describe "${SERVICE_NAME}-trigger" \
        --project="$PROJECT_ID" &>/dev/null 2>&1; then
     gcloud builds triggers create github \
@@ -278,7 +257,7 @@ if [[ -n "$GITHUB_ORG" ]]; then
       --repo-name="$GITHUB_REPO" \
       --branch-pattern='^main$' \
       --build-config=cloudbuild.yaml \
-      --substitutions="_CHROMA_HOST=${CHROMA_INTERNAL_IP},_REGION=${REGION},_REPO=${REPO_NAME},_SERVICE=${SERVICE_NAME}" \
+      --substitutions="_REGION=${REGION},_REPO=${REPO_NAME},_SERVICE=${SERVICE_NAME},_GCP_PROJECT_ID=${PROJECT_ID},_COLLECTION_NAME=${COLLECTION_NAME}" \
       --project="$PROJECT_ID"
     success "Cloud Build trigger created — auto-deploys on push to main"
   else
@@ -301,7 +280,7 @@ fi
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${GREEN}  Deployment complete!${NC}"
+echo -e "${BOLD}${GREEN}  Deployment complete! (cost: ~\$0/month)${NC}"
 echo -e "${BOLD}${GREEN}════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}API URL:${NC}  ${SERVICE_URL}"
@@ -322,4 +301,9 @@ echo -e "${BOLD}Upload a document:${NC}"
 echo "  curl -X POST ${SERVICE_URL}/documents/upload \\"
 echo "    -H 'X-API-Key: ${RAG_API_KEY}' \\"
 echo "    -F 'file=@yourfile.pdf'"
+echo ""
+echo -e "${BOLD}Free tier limits:${NC}"
+echo "  Firestore: 50,000 reads/day, 20,000 writes/day, 1 GB storage"
+echo "  Cloud Run: 2,000,000 requests/month, 360,000 GB-seconds compute"
+echo "  Secret Manager: 6 secret versions, 10,000 access ops/month"
 echo ""

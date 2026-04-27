@@ -234,7 +234,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --max-instances=10 \
   --concurrency=80 \
   --timeout=600 \
-  --no-allow-unauthenticated \
+  --allow-unauthenticated \
   --set-secrets="ANTHROPIC_API_KEY=anthropic-api-key:latest,API_KEY=rag-api-key:latest" \
   --set-env-vars="USE_FIRESTORE=true,GCP_PROJECT_ID=${PROJECT_ID},COLLECTION_NAME=${COLLECTION_NAME},JSON_LOGS=true,LOG_LEVEL=INFO,WORKERS=1" \
   --quiet
@@ -267,7 +267,18 @@ else
   warn "Skipping Cloud Build trigger (set GITHUB_ORG=your-org to enable auto-deploy)"
 fi
 
-# ── Step 9: Smoke test ────────────────────────────────────────────────────────
+# ── Step 9: Allow public access (protected by X-API-Key in the app) ──────────
+step "Opening public access"
+
+gcloud run services add-iam-policy-binding "$SERVICE_NAME" \
+  --region="$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project="$PROJECT_ID" --quiet 2>/dev/null || true
+
+success "Service is publicly reachable (requests still require X-API-Key header)"
+
+# ── Step 10: Smoke test ───────────────────────────────────────────────────────
 step "Smoke testing deployment"
 
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/health")
@@ -286,21 +297,34 @@ echo ""
 echo -e "  ${BOLD}API URL:${NC}  ${SERVICE_URL}"
 echo -e "  ${BOLD}API Key:${NC}  ${RAG_API_KEY}"
 echo ""
-echo -e "${BOLD}Test it:${NC}"
+echo -e "${BOLD}Open interactive docs (no curl needed):${NC}"
+echo "  ${SERVICE_URL}/docs"
+echo "  → Click 'Authorize' → paste your API key → upload files & chat in browser"
+echo ""
+echo -e "${BOLD}Or use curl:${NC}"
+echo ""
+echo "  # Health (no key needed)"
 echo "  curl ${SERVICE_URL}/health"
 echo ""
-echo "  curl -X POST ${SERVICE_URL}/chat \\"
-echo "    -H 'X-API-Key: ${RAG_API_KEY}' \\"
-echo "    -H 'Content-Type: application/json' \\"
-echo "    -d '{\"query\": \"What is RAG?\"}'"
-echo ""
-echo -e "${BOLD}View logs:${NC}"
-echo "  gcloud logging tail 'resource.type=cloud_run_revision AND resource.labels.service_name=${SERVICE_NAME}' --project=${PROJECT_ID} --format=json"
-echo ""
-echo -e "${BOLD}Upload a document:${NC}"
+echo "  # Upload a document"
 echo "  curl -X POST ${SERVICE_URL}/documents/upload \\"
 echo "    -H 'X-API-Key: ${RAG_API_KEY}' \\"
 echo "    -F 'file=@yourfile.pdf'"
+echo ""
+echo "  # Ask a question"
+echo "  curl -X POST ${SERVICE_URL}/chat \\"
+echo "    -H 'X-API-Key: ${RAG_API_KEY}' \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"query\": \"What is this document about?\"}'"
+echo ""
+echo "  # Stream response token-by-token"
+echo "  curl -N -X POST ${SERVICE_URL}/chat/stream \\"
+echo "    -H 'X-API-Key: ${RAG_API_KEY}' \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"query\": \"Summarise the key points\"}'"
+echo ""
+echo -e "${BOLD}View logs:${NC}"
+echo "  gcloud logging tail 'resource.type=cloud_run_revision AND resource.labels.service_name=${SERVICE_NAME}' --project=${PROJECT_ID} --format=json"
 echo ""
 echo -e "${BOLD}Free tier limits:${NC}"
 echo "  Firestore: 50,000 reads/day, 20,000 writes/day, 1 GB storage"

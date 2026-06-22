@@ -30,6 +30,12 @@ from datetime import datetime
 import anthropic
 import pandas as pd
 
+GREEN = "\033[92m"
+RED   = "\033[91m"
+CYAN  = "\033[96m"
+BOLD  = "\033[1m"
+RESET = "\033[0m"
+
 FE_DIR = Path(__file__).parent
 FEATURES_PATH = FE_DIR / "features.py"
 RESULTS_PATH = FE_DIR / "results.tsv"
@@ -81,7 +87,7 @@ def generate_hypotheses(client, problem: str, schema_text: str) -> list:
     print("  Generating initial hypothesis space...")
     response = client.messages.create(
         model=MODEL_GENERATOR,
-        max_tokens=2048,
+        max_tokens=4096,
         system=HYPOTHESIS_SYSTEM,
         messages=[{
             "role": "user",
@@ -91,7 +97,34 @@ def generate_hypotheses(client, problem: str, schema_text: str) -> list:
     raw = response.content[0].text.strip()
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
     raw = re.sub(r"\n?```$", "", raw)
-    hypotheses = json.loads(raw)
+
+    # Robust parse: if truncated, recover complete objects from partial JSON
+    try:
+        hypotheses = json.loads(raw)
+    except json.JSONDecodeError:
+        # Find the last complete object by scanning for complete {...} blocks
+        objects = []
+        depth = 0
+        start = None
+        for i, ch in enumerate(raw):
+            if ch == "{":
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and start is not None:
+                    try:
+                        objects.append(json.loads(raw[start:i+1]))
+                    except json.JSONDecodeError:
+                        pass
+                    start = None
+        hypotheses = objects
+        print(f"  (Recovered {len(hypotheses)} hypotheses from partial response)")
+
+    if not hypotheses:
+        raise ValueError("No hypotheses could be parsed from the LLM response")
+
     print(f"  Generated {len(hypotheses)} hypotheses")
     return hypotheses
 
@@ -175,7 +208,7 @@ def generate_features(
 
     response = client.messages.create(
         model=MODEL_GENERATOR,
-        max_tokens=2500,
+        max_tokens=3500,
         system=FEATURE_SYSTEM,
         messages=[{
             "role": "user",
@@ -408,7 +441,15 @@ def run(max_iter: int = 15, dataset: str = "ieee"):
     init_catalog(problem)
 
     # ── Generate hypotheses ───────────────────────────────────────────────
-    hypotheses = generate_hypotheses(client, problem, schema_text)
+    try:
+        hypotheses = generate_hypotheses(client, problem, schema_text)
+    except Exception as e:
+        err = str(e)
+        if "credit balance is too low" in err or "insufficient" in err.lower():
+            print(f"\n  ERROR: Insufficient Anthropic credits.")
+            print(f"  Add credits at: https://console.anthropic.com/settings/billing")
+            sys.exit(1)
+        raise
 
     results_log = []
     iteration = 0
@@ -441,6 +482,11 @@ def run(max_iter: int = 15, dataset: str = "ieee"):
                 catalog_summary_for_prompt(), failure_history,
             )
         except Exception as e:
+            err = str(e)
+            if "credit balance is too low" in err or "insufficient" in err.lower():
+                print(f"\n  {RED}ERROR: Insufficient Anthropic credits.{RESET}")
+                print(f"  Add credits at: https://console.anthropic.com/settings/billing")
+                sys.exit(1)
             print(f"         Generation error: {e}")
             continue
 

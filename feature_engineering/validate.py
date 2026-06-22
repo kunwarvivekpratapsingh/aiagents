@@ -86,8 +86,11 @@ def layer1_static(features_content: str, auth_columns: list) -> dict:
             }
 
     # 5. Column existence — extract F.col("name") patterns from code only
+    #    Also allow columns created by earlier withColumn() calls in the same function
     col_refs = set(re.findall(r'[Ff]\.col\s*\(\s*["\'](\w+)["\']', code_only))
-    unknown = col_refs - set(auth_columns)
+    created_cols = set(re.findall(r'\.withColumn\s*\(\s*["\'](\w+)["\']', code_only))
+    allowed = set(auth_columns) | created_cols
+    unknown = col_refs - allowed
     if unknown:
         return {
             "pass": False, "layer": "L1",
